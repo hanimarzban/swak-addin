@@ -106,49 +106,125 @@ async function startDownload(){
 // Check for updates every 1 hour
 setTimeout(()=>{ checkForUpdate(); setInterval(checkForUpdate, 60*60*1000); }, 5000);
 
-// ── LICENSE STATE (server-authoritative) ──
-// This object is ONLY set by validateLicense() from server response
-// Never read from localStorage - always from server
+// ── SUPABASE CONFIG ──
+const SUPABASE_URL = 'https://apklqlvcwrtjdcfuplyr.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_qA95KQ4tCv3-7thy1f3vFg_gpllE61P';
+
+// ── DEVICE FINGERPRINT (stable, never stored) ──
+// Computed live on every call - cannot be spoofed from localStorage
+function getDeviceFingerprint() {
+  try {
+    const nav = window.navigator;
+    const screen = window.screen;
+    
+    // Collect stable hardware signals
+    const components = [
+      nav.userAgent,
+      nav.language,
+      nav.platform,
+      nav.hardwareConcurrency || '',
+      nav.maxTouchPoints || '',
+      screen.width + 'x' + screen.height,
+      screen.colorDepth,
+      screen.pixelDepth,
+      Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+      nav.languages ? nav.languages.join(',') : '',
+    ];
+
+    // Try to get Office-specific stable identifiers
+    if(typeof Office !== 'undefined' && Office.context) {
+      try {
+        const host = Office.context.host || '';
+        const platform = Office.context.platform || '';
+        components.push(host, platform);
+      } catch(e){}
+    }
+
+    // Hash with FNV-1a for a stable 64-bit fingerprint
+    const raw = components.join('|||');
+    let h1 = 0x811c9dc5, h2 = 0x811c9dc5;
+    for(let i = 0; i < raw.length; i++) {
+      const ch = raw.charCodeAt(i);
+      h1 ^= ch; h1 = Math.imul(h1, 0x01000193);
+      h2 ^= ch; h2 = Math.imul(h2, 0x01000193) ^ (i * 31);
+    }
+    // Return as 64-char hex string (min length 32 for server validation)
+    const fp = (h1 >>> 0).toString(16).padStart(8,'0') +
+               (h2 >>> 0).toString(16).padStart(8,'0') +
+               btoa(raw.slice(0,48)).replace(/[^a-zA-Z0-9]/g,'').slice(0,48);
+    return fp;
+  } catch(e) {
+    // Fallback: use navigator.userAgent hash only
+    const raw = navigator.userAgent + navigator.language + screen.width;
+    let h = 0;
+    for(let i = 0; i < raw.length; i++) h = Math.imul(h ^ raw.charCodeAt(i), 0x01000193);
+    return (h >>> 0).toString(16).padStart(8,'0').repeat(8).slice(0,64);
+  }
+}
+
+// ── LICENSE STATE ──
 let licenseState = {
   valid: false,
-  plan: 'free',          // 'free' | 'pro-individual' | 'corp-5' | 'corp-10' | 'corp-unlimited'
-  expiresAt: null,       // ISO date string from server
-  daysRemaining: null,   // computed server-side, integer
-  userCount: null,       // for corporate plans
+  plan: 'free',
+  expiresAt: null,
+  daysRemaining: null,
+  userCount: null,
   licenseKey: null,
   deviceId: null,
-  lastValidated: null,   // timestamp of last server check
+  lastValidated: null,
 };
 
-// Simulate server validation response (in production: calls Firebase)
-async function validateLicenseFromServer(key) {
-  // SECURITY: All auth is server-side (Firebase Cloud Function)
-  // localStorage only stores the KEY STRING for convenience (not auth tokens/state)
-  // The server re-validates on every call: key validity + expiry + device fingerprint
-  // Client CANNOT fake a valid response - all licenseState is set only from server response
-  // Constant-time response (prevent timing attacks on key validation)
-  const minDelay = 1200;
-  const start = Date.now();
-  await new Promise(r => setTimeout(r, minDelay)); // simulate network
-  
-  if(key.toUpperCase().startsWith('SWAK-') && key.length >= 15) {
-    // Simulate DEVICE_CONFLICT for keys containing 'CONFLICT' (for preview demo)
-    if(key.toUpperCase().includes('CONFLICT')) {
-      return { valid: false, error: 'DEVICE_CONFLICT', errorCode: 'DEVICE_CONFLICT',
-               registeredDevice: 'PC-A7B3C921', daysRemaining: 0 };
-    }
-    const isCorpKey = key.toUpperCase().includes('CORP');
-    const days = 47;
-    return {
-      valid: true,
-      plan: isCorpKey ? 'corp-5' : 'pro-individual',
-      expiresAt: new Date(Date.now() + days*86400000).toISOString(),
-      daysRemaining: days,
-      userCount: isCorpKey ? 5 : 1,
-      error: null, errorCode: null
-    };
+// ── SUPABASE RPC CALL ──
+async function callSupabaseRPC(fnName, params = {}) {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/${fnName}`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify(params),
+  });
+  if(!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`RPC ${fnName} failed: ${resp.status} ${err}`);
   }
-  return { valid: false, error: 'INVALID_KEY', errorCode: 'INVALID_KEY', daysRemaining: 0 };
+  return resp.json();
+}
+
+// ── VALIDATE LICENSE FROM SUPABASE ──
+async function validateLicenseFromServer(key) {
+  // Get live device fingerprint (never cached)
+  const deviceId = getDeviceFingerprint();
+  
+  // Anti-spoofing check before sending
+  if(!deviceId || deviceId.length < 32) {
+    return { valid: false, error: 'INVALID_DEVICE', errorCode: 'INVALID_DEVICE' };
+  }
+
+  try {
+    const result = await callSupabaseRPC('validate_license', {
+      p_key: key,
+      p_device_id: deviceId,
+    });
+    return {
+      valid: result.valid || false,
+      plan: result.plan || 'free',
+      expiresAt: result.expires_at || null,
+      daysRemaining: result.days_remaining || 0,
+      userCount: result.seat_count || 1,
+      error: result.error || null,
+      errorCode: result.error_code || null,
+      firstActivation: result.first_activation || false,
+    };
+  } catch(e) {
+    // Network error
+    if(!navigator.onLine || e.message.includes('fetch')) {
+      return { valid: false, error: 'NETWORK_ERROR', errorCode: 'NETWORK_ERROR' };
+    }
+    return { valid: false, error: 'SERVER_ERROR', errorCode: 'SERVER_ERROR' };
+  }
 }
 
 // SECURITY: Freeze licenseState after setting (prevents console override)
@@ -158,6 +234,10 @@ function applyServerLicense(serverResp, key) {
   const tok = btoa((serverResp.plan||'free') + (key||'') + 'swak_v1_integrity').slice(0,16);
   serverResp._tok = tok;
   // Only this function can update licenseState
+  if(serverResp.errorCode === 'INVALID_DEVICE') {
+    showDeviceTamperingModal();
+    return;
+  }
   if(serverResp.valid) {
     licenseState = {
       valid: true,
@@ -166,8 +246,8 @@ function applyServerLicense(serverResp, key) {
       daysRemaining: serverResp.daysRemaining,
       userCount: serverResp.userCount,
       licenseKey: key,
-      deviceId: 'device_' + Math.random().toString(36).substr(2,8),
-      lastValidated: Date.now(), // critical: staleness check uses this
+      deviceId: getDeviceFingerprint(),
+      lastValidated: Date.now(),
     };
     // Refresh lastValidated every 5 min to keep isPlanPro() returning true
     // (in production this is done by scheduleRevalidation)
@@ -271,6 +351,25 @@ let appStarting = true; // show connecting screen on first load
 let startupStatus = 'connecting'; // 'connecting' | 'checking' | 'ready'
 let isConnected = false; // starts false - only server can set true
 
+// ── INTERNET STATUS (native events) ──
+window.addEventListener('online', () => {
+  updateConnectionStatus(true);
+  if(!appStarting) {
+    const wall = document.getElementById('swak-offline-wall');
+    if(wall) wall.remove();
+    rf(currentScreen==='app-pro');
+  }
+});
+window.addEventListener('offline', () => {
+  updateConnectionStatus(false);
+  if(!appStarting) showOfflineModal();
+});
+
+function showOfflineModal() {
+  if(document.getElementById('swak-offline-wall')) return;
+  rf(currentScreen==='app-pro');
+}
+
 function updateConnectionStatus(connected) {
   isConnected = connected;
   // Update all status indicators without full re-render
@@ -345,6 +444,21 @@ var I18N = {
     tools:'tools', ops:'ops',
     configParams:'Configure parameters',
     getMonthly:'Get Pro Monthly', get3mo:'Get 3-Month',
+    deviceTamperTitle:'Security Alert', deviceTamperMsg:'Security codes tampered or hardware ID not found. The add-in is locked.',
+    keyErrorTitle:'Invalid License Key', expiredTitle:'License Expired', revokedTitle:'License Revoked',
+    suspendedTitle:'License Suspended', rateLimitTitle:'Too Many Attempts',
+    serverErrorTitle:'Server Error', serverErrorMsg:'An unexpected error occurred. Please try again.',
+    expiredMsg:'Your license has expired. Please renew to continue.',
+    revokedMsg:'This license has been revoked. Contact support.',
+    suspendedMsg:'This license is temporarily suspended. Contact support.',
+    rateLimitMsg:'Too many failed attempts. Wait 1 hour before trying again.',
+    renewNow:'Renew Now', networkError:'Network error. Please check your connection.',
+    keyError_INVALID_KEY:'Invalid key. Keys must start with SWAK-',
+    keyError_LICENSE_EXPIRED:'Your license has expired.',
+    keyError_DEVICE_CONFLICT:'This license is active on another device.',
+    keyError_RATE_LIMITED:'Too many attempts. Try again in 1 hour.',
+    keyError_LICENSE_REVOKED:'This license has been revoked.',
+    keyError_LICENSE_SUSPENDED:'This license is suspended.',
     inbox:'Inbox', inboxMessages:'message', inboxMessagesP:'messages', noMessages:'No messages', backToInbox:'← Back to Inbox',
     secure:'🔒 Secure', instantActivation:'⚡ Instant activation',
     daysLabel:'Days Remaining', expiresLabel:'Expires', deviceLabel:'Device',
@@ -397,6 +511,21 @@ var I18N = {
     tools:'ابزار', ops:'عملیات',
     configParams:'تنظیم پارامترها',
     getMonthly:'اشتراک ماهانه', get3mo:'اشتراک ۳ ماهه',
+    deviceTamperTitle:'هشدار امنیتی', deviceTamperMsg:'کدهای امنیتی دستکاری شده یا شناسه سخت‌افزاری یافت نشد. افزونه قفل شد.',
+    keyErrorTitle:'کلید نامعتبر', expiredTitle:'لایسنس منقضی', revokedTitle:'لایسنس باطل',
+    suspendedTitle:'لایسنس معلق', rateLimitTitle:'تلاش زیاد',
+    serverErrorTitle:'خطای سرور', serverErrorMsg:'خطای غیرمنتظره. دوباره امتحان کنید.',
+    expiredMsg:'لایسنس شما منقضی شده. برای ادامه تمدید کنید.',
+    revokedMsg:'این لایسنس باطل شده. با پشتیبانی تماس بگیرید.',
+    suspendedMsg:'این لایسنس معلق است. با پشتیبانی تماس بگیرید.',
+    rateLimitMsg:'تلاش‌های زیاد. ۱ ساعت دیگر امتحان کنید.',
+    renewNow:'تمدید اکنون', networkError:'خطای شبکه. اینترنت را بررسی کنید.',
+    keyError_INVALID_KEY:'کلید نامعتبر. باید با SWAK- شروع شود.',
+    keyError_LICENSE_EXPIRED:'لایسنس منقضی شده.',
+    keyError_DEVICE_CONFLICT:'این لایسنس روی دستگاه دیگری فعال است.',
+    keyError_RATE_LIMITED:'تلاش‌های زیاد. ۱ ساعت صبر کنید.',
+    keyError_LICENSE_REVOKED:'لایسنس باطل شده.',
+    keyError_LICENSE_SUSPENDED:'لایسنس معلق است.',
     inbox:'صندوق پیام', inboxMessages:'پیام', inboxMessagesP:'پیام', noMessages:'پیامی وجود ندارد', backToInbox:'→ بازگشت به صندوق',
     secure:'🔒 امن', instantActivation:'⚡ فعال‌سازی فوری',
     daysLabel:'روزهای باقی‌مانده', expiresLabel:'انقضا', deviceLabel:'دستگاه',
@@ -449,6 +578,21 @@ var I18N = {
     tools:'أدوات', ops:'عمليات',
     configParams:'تكوين المعاملات',
     getMonthly:'اشتراك شهري', get3mo:'اشتراك ٣ أشهر',
+    deviceTamperTitle:'تنبيه أمني', deviceTamperMsg:'تم التلاعب بأكواد الأمان. تم قفل الوظيفة الإضافية.',
+    keyErrorTitle:'مفتاح غير صالح', expiredTitle:'انتهت الصلاحية', revokedTitle:'ملغى',
+    suspendedTitle:'موقوف', rateLimitTitle:'محاولات كثيرة',
+    serverErrorTitle:'خطأ خادم', serverErrorMsg:'حدث خطأ غير متوقع. حاول مجدداً.',
+    expiredMsg:'انتهت صلاحية الترخيص. جدّد للمتابعة.',
+    revokedMsg:'تم إلغاء الترخيص. اتصل بالدعم.',
+    suspendedMsg:'الترخيص موقوف مؤقتاً. اتصل بالدعم.',
+    rateLimitMsg:'محاولات فاشلة كثيرة. انتظر ساعة.',
+    renewNow:'جدّد الآن', networkError:'خطأ في الشبكة. تحقق من الاتصال.',
+    keyError_INVALID_KEY:'مفتاح غير صالح. يجب أن يبدأ بـ SWAK-',
+    keyError_LICENSE_EXPIRED:'انتهت صلاحية الترخيص.',
+    keyError_DEVICE_CONFLICT:'الترخيص مفعّل على جهاز آخر.',
+    keyError_RATE_LIMITED:'محاولات كثيرة. انتظر ساعة.',
+    keyError_LICENSE_REVOKED:'الترخيص ملغى.',
+    keyError_LICENSE_SUSPENDED:'الترخيص موقوف.',
     inbox:'صندوق الرسائل', inboxMessages:'رسالة', inboxMessagesP:'رسائل', noMessages:'لا توجد رسائل', backToInbox:'→ العودة للصندوق',
     secure:'🔒 آمن', instantActivation:'⚡ تفعيل فوري',
     daysLabel:'الأيام المتبقية', expiresLabel:'الانتهاء', deviceLabel:'الجهاز',
@@ -1487,6 +1631,17 @@ function renderOfflineWall(){
 }
 
 async function retryConnection(){
+  if(!navigator.onLine) {
+    showErrorModal({
+      icon:'📡',
+      title: t('offlineTitle')||'No Internet Connection',
+      message: t('offlineDesc')||'Swak requires internet to verify your license.',
+      btnText: t('retryConnection')||'Retry',
+      btnAction: 'retryConnection()',
+      color:'#6B7280'
+    });
+    return;
+  }
   document.getElementById('retry-spinner')?.style && (document.getElementById('retry-spinner').style.display='inline');
   try {
     if(licenseState.licenseKey){
@@ -2533,6 +2688,74 @@ function showShareMenu(){
   document.getElementById('frame').appendChild(overlay);
 }
 
+// ══════════════════════════════════════════════════════════════
+// ERROR MODAL SYSTEM
+// ══════════════════════════════════════════════════════════════
+function removeErrorModals() {
+  ['swak-error-modal','swak-offline-wall'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.remove();
+  });
+}
+
+function showErrorModal({icon='⚠️', title, message, btnText, btnAction, lockApp=false, color='#F59E0B'}) {
+  removeErrorModals();
+  const frame = document.getElementById('frame');
+  if(!frame) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'swak-error-modal';
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(6px);z-index:2147483640;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .25s ease`;
+
+  const card = document.createElement('div');
+  const bg = isDark ? '#161B22' : '#FFFFFF';
+  const textC = isDark ? '#e6edf3' : '#1a1a2e';
+  const subC = isDark ? '#8b949e' : '#666';
+  const borderC = isDark ? '#30363d' : '#e1e4e8';
+  card.style.cssText = `background:${bg};border:1px solid ${borderC};border-radius:16px;padding:28px 24px;width:100%;max-width:280px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,0.5)`;
+
+  card.innerHTML = `
+    <div style="font-size:40px;margin-bottom:12px">${icon}</div>
+    <div style="font-size:14px;font-weight:800;color:${textC};margin-bottom:8px;line-height:1.3">${title}</div>
+    <div style="font-size:11px;color:${subC};line-height:1.6;margin-bottom:20px">${message}</div>
+    ${btnText ? `<button onclick="${btnAction||'removeErrorModals()'}" style="width:100%;padding:10px;background:linear-gradient(135deg,${color},${color}cc);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit">${btnText}</button>` : ''}
+    ${!lockApp && btnText ? `<button onclick="removeErrorModals()" style="width:100%;margin-top:8px;padding:8px;background:none;border:none;color:${subC};font-size:11px;cursor:pointer;font-family:inherit">Dismiss</button>` : ''}
+  `;
+
+  overlay.appendChild(card);
+  if(lockApp) overlay.onclick = e => e.stopPropagation();
+  else overlay.onclick = e => { if(e.target===overlay) removeErrorModals(); };
+  frame.appendChild(overlay);
+}
+
+function showDeviceTamperingModal() {
+  showErrorModal({
+    icon: '🔐',
+    title: t('deviceTamperTitle') || 'Security Alert',
+    message: t('deviceTamperMsg') || 'The security codes of your system have been tampered with, or a valid hardware ID could not be found. The add-in has been locked for security.',
+    btnText: t('contactSupport') || 'Contact Support',
+    btnAction: "window.open('https://swaksoft.com/support','_blank')",
+    lockApp: true,
+    color: '#EF4444'
+  });
+}
+
+function showLicenseErrorModal(errorCode) {
+  const errors = {
+    'INVALID_KEY':       { icon:'🔑', title: t('keyErrorTitle')||'Invalid License Key',     msg: t('keyErrorMsg')||'The license key you entered is not valid. Please check and try again.',                  color:'#F59E0B' },
+    'LICENSE_EXPIRED':   { icon:'⏰', title: t('expiredTitle')||'License Expired',           msg: t('expiredMsg')||'Your license has expired. Please renew to continue using Swak.',                          color:'#F59E0B', btn: t('renewNow')||'Renew Now', action:"window.open('https://swaksoft.com/renew','_blank')" },
+    'LICENSE_REVOKED':   { icon:'🚫', title: t('revokedTitle')||'License Revoked',           msg: t('revokedMsg')||'This license has been revoked. Please contact support.',                                  color:'#EF4444' },
+    'LICENSE_SUSPENDED': { icon:'⏸️', title: t('suspendedTitle')||'License Suspended',       msg: t('suspendedMsg')||'This license is temporarily suspended. Please contact support.',                        color:'#F59E0B' },
+    'DEVICE_CONFLICT':   { icon:'💻', title: t('deviceConflict')||'Device Conflict',         msg: t('deviceConflictMsg')||'This license is already activated on another device. Use your original device.', color:'#F59E0B' },
+    'RATE_LIMITED':      { icon:'🛡️', title: t('rateLimitTitle')||'Too Many Attempts',       msg: t('rateLimitMsg')||'Too many failed attempts. Please wait 1 hour before trying again.',                    color:'#EF4444' },
+    'INVALID_DEVICE':    { icon:'🔐', title: t('deviceTamperTitle')||'Security Alert',       msg: t('deviceTamperMsg')||'Hardware ID could not be verified. The add-in has been locked.',                   color:'#EF4444', lock:true },
+    'SERVER_ERROR':      { icon:'🔧', title: t('serverErrorTitle')||'Server Error',          msg: t('serverErrorMsg')||'An unexpected error occurred. Please try again in a few minutes.',                   color:'#6B7280' },
+    'NETWORK_ERROR':     { icon:'📡', title: t('offlineTitle')||'No Internet Connection',    msg: t('offlineDesc')||'Swak requires internet to verify your license.',                                         color:'#6B7280' },
+  };
+  const e = errors[errorCode] || errors['SERVER_ERROR'];
+  showErrorModal({ icon:e.icon, title:e.title, message:e.msg, btnText:e.btn, btnAction:e.action, lockApp:!!e.lock, color:e.color });
+}
+
 function show(s){
   if(s==='keyinput') window._keyPrevScreen = currentScreen || 'onboarding';
   if(s!=='keyinput') window._changingMode = false; // reset change mode when leaving
@@ -2619,30 +2842,63 @@ function activateLicenseFinal(){
   }
 }
 
-function simulateActivation(){
+async function simulateActivation(){
   const v=(document.getElementById('keyIn')?.value||'').trim();
   if(!window._keyValid){showT('error',t('toastInvalidKey'));return;}
-  // Simulate validation with loading state
+
+  // Check internet before attempting
+  if(!navigator.onLine) {
+    showErrorModal({
+      icon:'📡',
+      title: t('offlineTitle')||'No Internet Connection',
+      message: t('offlineDesc')||'Please check your internet connection and try again.',
+      btnText: t('retryConnection')||'Retry',
+      btnAction: 'simulateActivation()',
+      color:'#6B7280'
+    });
+    return;
+  }
+
   window._keyState='validating';
   rf(false);
-  setTimeout(()=>{
-    // PREVIEW ONLY: In production, this calls the real license API
-    // Real add-in: POST /api/v1/activate {key, deviceId, officeVersion}
-    // Simulate: SWAK- prefix = valid, else error
-    if(v.toUpperCase().startsWith('SWAK-') && v.length>=15){
+
+  try {
+    const resp = await validateLicenseFromServer(v);
+
+    if(resp.errorCode === 'INVALID_DEVICE') {
+      showDeviceTamperingModal();
+      window._keyState='idle';
+      rf(false);
+      return;
+    }
+
+    if(resp.errorCode === 'NETWORK_ERROR') {
+      window._keyState='error';
+      window._keyError = t('networkError')||'Network error. Please check your connection.';
+      rf(false);
+      return;
+    }
+
+    if(resp.valid) {
+      applyServerLicense(resp, v);
+      saveKeyToStorage(v);
       window._keyState='success';
       window._keyError='';
-      // Set licenseState so isPlanPro() returns true → activateLicenseFinal goes to app-pro
-      licenseState = { valid: true, plan: 'pro-individual', expiresAt: '2026-12-31',
-        daysRemaining: 365, licenseKey: v, registeredDevice: 'This Device' };
+      rf(false);
     } else {
       window._keyState='error';
-      window._keyError=t('keyErrorInvalid')||'Key format is invalid. Keys must start with SWAK-';
-      // Invalid key → Open App leads to free
-      licenseState = { valid: false, plan: 'free', expiresAt: null, daysRemaining: null, licenseKey: null, registeredDevice: null };
+      window._keyError = t('keyError_'+resp.errorCode) || t('keyErrorInvalid') || 'Invalid license key.';
+      // Show specific error modal for serious errors
+      if(['LICENSE_REVOKED','LICENSE_SUSPENDED','RATE_LIMITED','DEVICE_CONFLICT'].includes(resp.errorCode)) {
+        setTimeout(()=>showLicenseErrorModal(resp.errorCode), 400);
+      }
+      rf(false);
     }
+  } catch(e) {
+    window._keyState='error';
+    window._keyError = t('serverError')||'An error occurred. Please try again.';
     rf(false);
-  },1200);
+  }
 }
 function handlePlan(id){
   if(id==='free'){show('app');}
@@ -2784,10 +3040,20 @@ async function startupFlow() {
   appStarting = true;
   startupStatus = 'connecting';
   rf(false);
+
+  // Check internet first using navigator.onLine
+  if(!navigator.onLine) {
+    updateConnectionStatus(false);
+    appStarting = false;
+    const usedBefore = (() => { try { return localStorage.getItem('swak_used_before'); } catch(e){ return null; } })();
+    if(usedBefore) show('app'); else show('onboarding');
+    return;
+  }
+
   // Check localStorage for saved license key
   let savedKey = null;
   try { savedKey = localStorage.getItem('swak_license_key'); } catch(e){}
-  await new Promise(r => setTimeout(r, 600)); // simulate connecting
+  await new Promise(r => setTimeout(r, 600)); // brief connecting animation
   if(savedKey) {
     startupStatus = 'checking';
     rf(false);
