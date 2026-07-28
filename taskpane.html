@@ -174,23 +174,33 @@ let licenseState = {
   lastValidated: null,
 };
 
-// ── SUPABASE RPC CALL ──
-async function callSupabaseRPC(fnName, params = {}) {
+// ── SUPABASE RPC CALL (with timeout) ──
+async function callSupabaseRPC(fnName, params = {}, timeoutMs = 8000) {
   const url = `${SUPABASE_URL}/rest/v1/rpc/${fnName}`;
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify(params),
-  });
-  if(!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`RPC ${fnName} failed: ${resp.status} ${err}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify(params),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if(!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`RPC_${resp.status}`);
+    }
+    return resp.json();
+  } catch(e) {
+    clearTimeout(timer);
+    if(e.name === 'AbortError') throw new Error('TIMEOUT');
+    throw e;
   }
-  return resp.json();
 }
 
 // ── VALIDATE LICENSE FROM SUPABASE ──
@@ -349,7 +359,260 @@ const POST_UPDATE_CHANGELOG = {
 function unreadCount(){ return INBOX_MESSAGES.filter(m=>!m.read).length; }
 let appStarting = true; // show connecting screen on first load
 let startupStatus = 'connecting'; // 'connecting' | 'checking' | 'ready'
-let isConnected = false; // starts false - only server can set true
+let isConnected = navigator.onLine !== false; // init from browser, server confirms
+
+// ══════════════════════════════════════════════════════════════
+// UNIFIED AUTH SYSTEM
+// Used by: startup, periodic check (every 5min), per-tool check
+// ══════════════════════════════════════════════════════════════
+
+// Lock entire app - prevents all interaction
+function lockApp(modalId) {
+  // Already locked
+  if(document.getElementById(modalId)) return;
+  // Prevent clicks on frame
+  const frame = document.getElementById('frame');
+  if(frame) frame.style.pointerEvents = 'none';
+}
+
+function unlockApp() {
+  const frame = document.getElementById('frame');
+  if(frame) frame.style.pointerEvents = '';
+}
+
+// Show a beautiful locked modal
+function showLockedModal({id, icon, title, message, color='#F59E0B',
+  btn1Text, btn1Action, btn2Text, btn2Action}) {
+  // Remove existing
+  document.getElementById(id)?.remove();
+  const frame = document.getElementById('frame');
+  if(!frame) return;
+
+  lockApp(id);
+  const overlay = document.createElement('div');
+  overlay.id = id;
+  overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.92);
+    backdrop-filter:blur(10px);z-index:2147483647;display:flex;align-items:center;
+    justify-content:center;padding:16px`;
+  overlay.onclick = e => e.stopPropagation();
+  overlay.onkeydown = e => e.stopPropagation();
+
+  const bg = isDark?'#161B22':'#fff';
+  const tc = isDark?'#e6edf3':'#1a1a2e';
+  const sc = isDark?'#8b949e':'#666';
+  const bc = isDark?'#30363d':'#e1e4e8';
+
+  const b1 = btn1Text ? `<button onclick="unlockApp();document.getElementById('${id}')?.remove();${btn1Action||''}"
+    style="width:100%;padding:10px;background:linear-gradient(135deg,${color},${color}bb);border:none;
+    border-radius:8px;color:#fff;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;margin-bottom:8px">
+    ${btn1Text}</button>` : '';
+
+  const b2 = btn2Text ? `<button onclick="window.open('https://swaksoft.com/contact','_blank')"
+    style="width:100%;padding:9px;background:none;border:1px solid ${bc};border-radius:8px;
+    color:${sc};font-size:11px;cursor:pointer;font-family:inherit">
+    ${btn2Text}</button>` : '';
+
+  overlay.innerHTML = `
+    <div style="background:${bg};border:1px solid ${bc};border-radius:18px;
+      padding:30px 24px;width:100%;max-width:282px;text-align:center;
+      box-shadow:0 32px 80px rgba(0,0,0,.6)">
+      <div style="font-size:44px;margin-bottom:14px">${icon}</div>
+      <div style="font-size:14px;font-weight:800;color:${tc};margin-bottom:8px;line-height:1.3">${title}</div>
+      <div style="font-size:11px;color:${sc};line-height:1.7;margin-bottom:22px">${message}</div>
+      ${b1}${b2}
+    </div>`;
+  frame.appendChild(overlay);
+}
+
+// ── AUTH RESULT HANDLER ──
+// Handles all 6 cases from startup/periodic/tool check
+function handleAuthResult(resp, savedKey, afterSuccess) {
+  if(!resp) {
+    // Server timeout/no response
+    updateConnectionStatus(false);
+    showLockedModal({
+      id: 'swak-server-timeout',
+      icon: '⏱️',
+      title: t('timeoutTitle')||'Server Not Responding',
+      message: t('timeoutMsg')||'Swak servers are not responding. Please check your connection and try again.',
+      color: '#6B7280',
+      btn1Text: '🔄 '+(t('retryConnection')||'Try Again'),
+      btn1Action: 'startupFlow()',
+      btn2Text: '💬 '+(t('contactSupport')||'Contact Support'),
+    });
+    return;
+  }
+
+  const code = resp.errorCode || resp.error_code || null;
+
+  // Case 5: Device fingerprint invalid/tampered
+  if(code === 'INVALID_DEVICE') {
+    updateConnectionStatus(false);
+    showLockedModal({
+      id: 'swak-device-error',
+      icon: '🔐',
+      title: t('deviceTamperTitle')||'Device ID Not Recognized',
+      message: t('deviceTamperMsg')||'Your device hardware ID could not be identified or has been tampered with. The add-in is locked for security.',
+      color: '#EF4444',
+      btn1Text: '💬 '+(t('contactSupport')||'Contact Support'),
+      btn1Action: "window.open('https://swaksoft.com/contact','_blank')",
+    });
+    return;
+  }
+
+  // Case 2: License not found in DB
+  if(code === 'NOT_FOUND' || code === 'INVALID_KEY') {
+    updateConnectionStatus(true);
+    try { localStorage.removeItem('swak_license_key'); } catch(e){}
+    showLockedModal({
+      id: 'swak-invalid-license',
+      icon: '🔑',
+      title: t('keyErrorTitle')||'Invalid License',
+      message: t('keyErrorMsg')||'The license stored on this device was not found. Please re-enter your license key.',
+      color: '#F59E0B',
+      btn1Text: t('enterLicense')||'Enter License Key',
+      btn1Action: "show('keyinput')",
+    });
+    return;
+  }
+
+  // Case 3: License expired
+  if(code === 'LICENSE_EXPIRED' || resp.errorCode === 'LICENSE_EXPIRED') {
+    updateConnectionStatus(true);
+    showLockedModal({
+      id: 'swak-expired',
+      icon: '⏰',
+      title: t('expiredTitle')||'License Expired',
+      message: t('expiredMsg')||'Your license has expired. Purchase a new license to continue using Swak Pro.',
+      color: '#F59E0B',
+      btn1Text: '🛒 '+(t('buyLicense')||'Buy New License'),
+      btn1Action: "show('onboarding')",
+      btn2Text: '💬 '+(t('contactSupport')||'Contact Support'),
+    });
+    return;
+  }
+
+  // Case 4: License active on another device
+  if(code === 'DEVICE_CONFLICT') {
+    updateConnectionStatus(true);
+    try { localStorage.removeItem('swak_license_key'); } catch(e){}
+    showLockedModal({
+      id: 'swak-device-conflict',
+      icon: '💻',
+      title: t('deviceConflict')||'License On Another Device',
+      message: t('deviceConflictMsg')||'This license is already activated on another computer. Please use your original device or contact support.',
+      color: '#F59E0B',
+      btn1Text: t('backToOnboarding')||'OK',
+      btn1Action: "show('onboarding')",
+      btn2Text: '💬 '+(t('contactSupport')||'Contact Support'),
+    });
+    return;
+  }
+
+  // License suspended or revoked
+  if(code === 'LICENSE_SUSPENDED' || code === 'LICENSE_REVOKED') {
+    updateConnectionStatus(true);
+    showLockedModal({
+      id: 'swak-license-blocked',
+      icon: '🚫',
+      title: code === 'LICENSE_SUSPENDED' ? (t('suspendedTitle')||'License Suspended') : (t('revokedTitle')||'License Revoked'),
+      message: code === 'LICENSE_SUSPENDED' ? (t('suspendedMsg')||'Your license is temporarily suspended.') : (t('revokedMsg')||'Your license has been revoked.'),
+      color: '#EF4444',
+      btn1Text: '💬 '+(t('contactSupport')||'Contact Support'),
+      btn1Action: "window.open('https://swaksoft.com/contact','_blank')",
+    });
+    return;
+  }
+
+  // Rate limited
+  if(code === 'RATE_LIMITED') {
+    updateConnectionStatus(true);
+    showLockedModal({
+      id: 'swak-rate-limited',
+      icon: '🛡️',
+      title: t('rateLimitTitle')||'Too Many Attempts',
+      message: t('rateLimitMsg')||'Too many failed attempts. Please wait before trying again.',
+      color: '#EF4444',
+      btn1Text: t('contactSupport')||'Contact Support',
+      btn1Action: "window.open('https://swaksoft.com/contact','_blank')",
+    });
+    return;
+  }
+
+  // Case 6: SUCCESS
+  if(resp.valid) {
+    updateConnectionStatus(true);
+    applyServerLicense(resp, savedKey);
+    if(typeof afterSuccess === 'function') afterSuccess();
+    return;
+  }
+
+  // Unknown error
+  updateConnectionStatus(false);
+  showLockedModal({
+    id: 'swak-server-error',
+    icon: '⚠️',
+    title: t('serverErrorTitle')||'Unexpected Error',
+    message: t('serverErrorMsg')||'An unexpected error occurred. Please try again.',
+    color: '#6B7280',
+    btn1Text: '🔄 '+(t('retryConnection')||'Try Again'),
+    btn1Action: 'startupFlow()',
+    btn2Text: '💬 '+(t('contactSupport')||'Contact Support'),
+  });
+}
+
+// ── PERIODIC LICENSE CHECK (every 5min, Pro only) ──
+let _licenseCheckTimer = null;
+function startLicensePolling(key) {
+  if(_licenseCheckTimer) clearInterval(_licenseCheckTimer);
+  _licenseCheckTimer = setInterval(async () => {
+    if(!isPlanPro()) { stopLicensePolling(); return; }
+    if(!navigator.onLine) { updateConnectionStatus(false); return; }
+    try {
+      const resp = await validateLicenseFromServer(key);
+      if(!isPlanPro()) return; // user logged out during check
+      handleAuthResult(resp, key, () => {
+        // Still valid - update state silently
+      });
+    } catch(e) {
+      updateConnectionStatus(false);
+    }
+  }, 5 * 60 * 1000); // 5 minutes
+}
+
+function stopLicensePolling() {
+  if(_licenseCheckTimer) { clearInterval(_licenseCheckTimer); _licenseCheckTimer = null; }
+}
+
+// ── PER-TOOL AUTH CHECK ──
+// Called before every Pro tool execution
+async function verifyLicenseBeforeRun(savedKey) {
+  if(!navigator.onLine) {
+    updateConnectionStatus(false);
+    showLockedModal({
+      id: 'swak-offline-wall',
+      icon: '📡',
+      title: t('offlineTitle')||'No Internet Connection',
+      message: t('offlineDesc')||'Swak requires internet to verify your license.',
+      color: '#6B7280',
+      btn1Text: '🔄 '+(t('retryConnection')||'Retry'),
+      btn1Action: 'startupFlow()',
+    });
+    return false;
+  }
+  try {
+    const resp = await validateLicenseFromServer(savedKey);
+    if(resp && resp.valid) {
+      applyServerLicense(resp, savedKey);
+      return true;
+    }
+    handleAuthResult(resp, savedKey, null);
+    return false;
+  } catch(e) {
+    handleAuthResult(null, savedKey, null);
+    return false;
+  }
+}
 
 // ── INTERNET STATUS (native events) ──
 window.addEventListener('online', () => {
@@ -444,6 +707,8 @@ var I18N = {
     tools:'tools', ops:'ops',
     configParams:'Configure parameters',
     getMonthly:'Get Pro Monthly', get3mo:'Get 3-Month',
+    timeoutTitle:'Connection Timeout', timeoutMsg:'Could not connect to Swak servers. Please check your connection and try again.',
+    startConnecting:'Loading...', startChecking:'Verifying license...', startReady:'Ready!',
     deviceTamperTitle:'Security Alert', deviceTamperMsg:'Security codes tampered or hardware ID not found. The add-in is locked.',
     keyErrorTitle:'Invalid License Key', expiredTitle:'License Expired', revokedTitle:'License Revoked',
     suspendedTitle:'License Suspended', rateLimitTitle:'Too Many Attempts',
@@ -452,7 +717,7 @@ var I18N = {
     revokedMsg:'This license has been revoked. Contact support.',
     suspendedMsg:'This license is temporarily suspended. Contact support.',
     rateLimitMsg:'Too many failed attempts. Wait 1 hour before trying again.',
-    renewNow:'Renew Now', networkError:'Network error. Please check your connection.',
+    renewNow:'Renew Now', networkError:'Network error. Please check your connection.', processing:'Processing...', enterLicense:'Enter License Key', backToOnboarding:'Back',
     keyError_INVALID_KEY:'Invalid key. Keys must start with SWAK-',
     keyError_LICENSE_EXPIRED:'Your license has expired.',
     keyError_DEVICE_CONFLICT:'This license is active on another device.',
@@ -511,6 +776,8 @@ var I18N = {
     tools:'ابزار', ops:'عملیات',
     configParams:'تنظیم پارامترها',
     getMonthly:'اشتراک ماهانه', get3mo:'اشتراک ۳ ماهه',
+    timeoutTitle:'اتصال ناموفق', timeoutMsg:'اتصال به سرورهای Swak ممکن نشد. اتصال اینترنت خود را بررسی کنید.',
+    startConnecting:'در حال بارگذاری...', startChecking:'در حال تأیید لایسنس...', startReady:'آماده!',
     deviceTamperTitle:'هشدار امنیتی', deviceTamperMsg:'کدهای امنیتی دستکاری شده یا شناسه سخت‌افزاری یافت نشد. افزونه قفل شد.',
     keyErrorTitle:'کلید نامعتبر', expiredTitle:'لایسنس منقضی', revokedTitle:'لایسنس باطل',
     suspendedTitle:'لایسنس معلق', rateLimitTitle:'تلاش زیاد',
@@ -519,7 +786,7 @@ var I18N = {
     revokedMsg:'این لایسنس باطل شده. با پشتیبانی تماس بگیرید.',
     suspendedMsg:'این لایسنس معلق است. با پشتیبانی تماس بگیرید.',
     rateLimitMsg:'تلاش‌های زیاد. ۱ ساعت دیگر امتحان کنید.',
-    renewNow:'تمدید اکنون', networkError:'خطای شبکه. اینترنت را بررسی کنید.',
+    renewNow:'تمدید اکنون', networkError:'خطای شبکه. اینترنت را بررسی کنید.', processing:'در حال پردازش...', enterLicense:'وارد کردن کلید لایسنس', backToOnboarding:'بازگشت',
     keyError_INVALID_KEY:'کلید نامعتبر. باید با SWAK- شروع شود.',
     keyError_LICENSE_EXPIRED:'لایسنس منقضی شده.',
     keyError_DEVICE_CONFLICT:'این لایسنس روی دستگاه دیگری فعال است.',
@@ -578,6 +845,8 @@ var I18N = {
     tools:'أدوات', ops:'عمليات',
     configParams:'تكوين المعاملات',
     getMonthly:'اشتراك شهري', get3mo:'اشتراك ٣ أشهر',
+    timeoutTitle:'انتهت مهلة الاتصال', timeoutMsg:'تعذّر الاتصال بخوادم Swak. تحقق من اتصالك بالإنترنت.',
+    startConnecting:'جاري التحميل...', startChecking:'جاري التحقق من الترخيص...', startReady:'جاهز!',
     deviceTamperTitle:'تنبيه أمني', deviceTamperMsg:'تم التلاعب بأكواد الأمان. تم قفل الوظيفة الإضافية.',
     keyErrorTitle:'مفتاح غير صالح', expiredTitle:'انتهت الصلاحية', revokedTitle:'ملغى',
     suspendedTitle:'موقوف', rateLimitTitle:'محاولات كثيرة',
@@ -586,7 +855,7 @@ var I18N = {
     revokedMsg:'تم إلغاء الترخيص. اتصل بالدعم.',
     suspendedMsg:'الترخيص موقوف مؤقتاً. اتصل بالدعم.',
     rateLimitMsg:'محاولات فاشلة كثيرة. انتظر ساعة.',
-    renewNow:'جدّد الآن', networkError:'خطأ في الشبكة. تحقق من الاتصال.',
+    renewNow:'جدّد الآن', networkError:'خطأ في الشبكة. تحقق من الاتصال.', processing:'جاري المعالجة...', enterLicense:'إدخال مفتاح الترخيص', backToOnboarding:'رجوع',
     keyError_INVALID_KEY:'مفتاح غير صالح. يجب أن يبدأ بـ SWAK-',
     keyError_LICENSE_EXPIRED:'انتهت صلاحية الترخيص.',
     keyError_DEVICE_CONFLICT:'الترخيص مفعّل على جهاز آخر.',
@@ -1612,7 +1881,7 @@ function canRunTool(toolId) {
 
 // ── SCREENS ──
 function renderOfflineWall(){
-  if(isConnected || appStarting) return '';
+  if(isConnected || appStarting || navigator.onLine) return '';
   return`<div id="swak-offline-wall" style="position:fixed;inset:0;background:#000000ee;z-index:2147483645;display:flex;align-items:center;justify-content:center;animation:fadeIn .3s ease" onclick="event.stopPropagation();event.preventDefault()">
     <div style="background:${C().bg};border:2px solid #60A5FA;border-radius:16px;padding:22px;width:280px;text-align:center" onclick="event.stopPropagation()">
       <div style="font-size:32px;margin-bottom:12px">🌐</div>
@@ -1712,8 +1981,8 @@ function renderDeviceConflict(){
 
 function renderStartup(){
   const msgs = {
-    connecting: t('startConnecting')||'Connecting to server...',
-    checking:   t('startChecking')||'Checking license...',
+    connecting: t('startConnecting')||'Loading...',
+    checking:   t('startChecking')||'Verifying license...',
     ready:      t('startReady')||'Ready!',
   };
   const colors = {connecting:'#60A5FA', checking:'#F59E0B', ready:'#4ADE80'};
@@ -2303,7 +2572,7 @@ function renderApp(isPro){
     <!-- STATUS -->
     <div style="display:flex;align-items:center;gap:5px;padding-bottom:8px">
       <span class="conn-dot" style="width:5px;height:5px;border-radius:50%;background:${isConnected?'#4ADE80':'#F87171'};display:inline-block;flex-shrink:0;transition:background .3s"></span>
-      <span class="conn-text" style="font-size:10px;color:${C().text4}">${isConnected?t('connected'):t('disconnected')}</span>
+      <span class="conn-text" style="font-size:10px;color:${C().text4}">${isConnected?(t('connected')||'Connected'):(t('disconnected')||'Disconnected')}</span>
       <button onclick="togglePlan()" style="margin-left:6px;font-size:9px;font-weight:800;padding:1px 5px;border-radius:3px;letter-spacing:.07em;text-transform:uppercase;background:${isPro?'linear-gradient(135deg,#4ADE80,#22D3EE)':C().bg2};color:${isPro?'#0D1117':C().text4};border:1px solid ${isPro?'transparent':C().border2};cursor:pointer;white-space:nowrap;flex-shrink:0;line-height:1.6">${isPro?'⬡ PRO':'◇ FREE'}</button>
       <span style="margin-left:auto;font-size:11px;color:${isSearching?(results.length?'#4ADE80':'#F87171'):C().text4}">
         ${isSearching?toLocalDigits(results.length)+(results.length!==1?' results':' result'):toLocalDigits(TIERS.reduce((s,t)=>s+t.tools.length,0))+' '+(t('tools')||'tools')+' • '+toLocalDigits(totalOps())+' '+(t('ops')||'ops')}
@@ -2958,35 +3227,30 @@ function backToPanel(){
 }
 
 async function runTool(tierId, toolId, isPro){
-  // Re-verify pro status before each tool run (can't be bypassed from console)
   const actuallyPro = isPlanPro();
-  if(isPro !== actuallyPro) { isPro = actuallyPro; }
-  // Block if pro tool attempted with free license
-  const tier = TIERS.find(t=>t.id===tierId);
-  const tool = tier?.tools.find(t=>t.id===toolId);
+  const tier = TIERS.find(tr=>tr.id===tierId);
+  const tool = tier?.tools.find(tr=>tr.id===toolId);
+
+  // Free tool lock: re-disable immediately if user bypassed UI
   if(tool && !tool.free && !actuallyPro) {
     showT('error', t('upgradeRequired')||'Upgrade to Pro to use this tool.');
+    // Re-disable the button (undo any bypass)
+    rf(false);
     return;
   }
+
   if(!canRunTool(toolId)) return;
   const toolColor = tier?.color||'#4ADE80';
 
-  // STEP 1: Verify license (server call)
-  _showRunStep(toolColor, '🔐', t('checkingLicense')||'Verifying license...', null);
-  try {
-    if(isPlanPro()){
-      const resp = await validateLicenseFromServer(licenseState.licenseKey||'SWAK-DEMO');
-      applyServerLicense(resp, licenseState.licenseKey||'SWAK-DEMO');
-      if(!isPlanPro()){
-        showT('error', t('licenseExpired')||'License expired.');
-        setTimeout(()=>show('app'), 1500);
-        return;
-      }
-    }
-  } catch(e) {
-    updateConnectionStatus(false);
-    showT('error', t('noInternet')||'Cannot reach server. Check internet connection.');
-    rf(isPro); return;
+  // ── Pro tools: verify license with server before EVERY run ──
+  if(actuallyPro) {
+    const savedKey = licenseState.licenseKey || (() => { try { return localStorage.getItem('swak_license_key'); } catch(e){ return null; } })();
+
+    // Show Processing animation (non-blocking)
+    _showRunStep(toolColor, '🔐', t('processing')||'Processing...', null);
+
+    const authOk = await verifyLicenseBeforeRun(savedKey);
+    if(!authOk) return; // modal already shown by verifyLicenseBeforeRun
   }
 
   // STEP 2: Reading data
@@ -3031,45 +3295,140 @@ document.addEventListener('keydown',e=>{
 });
 
 // ── STARTUP FLOW ──
+// ── STARTUP TIMEOUT MODAL (locked, not dismissible) ──
+function showServerTimeoutModal() {
+  appStarting = false;
+  rf(false);
+  const frame = document.getElementById('frame');
+  if(!frame) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'swak-timeout-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);backdrop-filter:blur(8px);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.onclick = e => e.stopPropagation();
+  const bg = isDark ? '#161B22' : '#fff';
+  const tc = isDark ? '#e6edf3' : '#1a1a2e';
+  const sc = isDark ? '#8b949e' : '#666';
+  const bc = isDark ? '#30363d' : '#e1e4e8';
+  overlay.innerHTML = `
+    <div style="background:${bg};border:1px solid ${bc};border-radius:16px;padding:28px 24px;width:100%;max-width:280px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.5)">
+      <div style="font-size:38px;margin-bottom:12px">⏱️</div>
+      <div style="font-size:14px;font-weight:800;color:${tc};margin-bottom:8px">${t('timeoutTitle')||'Connection Timeout'}</div>
+      <div style="font-size:11px;color:${sc};line-height:1.6;margin-bottom:20px">${t('timeoutMsg')||'Could not connect to Swak servers. Please check your connection and try again.'}</div>
+      <button onclick="document.getElementById('swak-timeout-modal')?.remove();startupFlow()"
+        style="width:100%;padding:10px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:8px;color:#0D1117;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;margin-bottom:8px">
+        🔄 ${t('retryConnection')||'Retry'}
+      </button>
+      <button onclick="window.open('https://swaksoft.com/support','_blank')"
+        style="width:100%;padding:9px;background:none;border:1px solid ${bc};border-radius:8px;color:${sc};font-size:11px;cursor:pointer;font-family:inherit">
+        💬 ${t('contactSupport')||'Contact Support'}
+      </button>
+    </div>`;
+  frame.appendChild(overlay);
+}
+
+// ─── Internet reachability check (non-blocking) ───
+async function checkInternetReachable() {
+  // navigator.onLine is the most reliable signal available in add-in context
+  // no-cors fetch is unreliable (always "opaque" response, can't distinguish success/fail)
+  // So we trust navigator.onLine + let the actual Supabase RPC confirm connectivity
+  return navigator.onLine !== false;
+}
+
 async function startupFlow() {
-  // Freeze config so console can't easily override
+  // Freeze config
   try {
     Object.defineProperty(window, 'APP_NAME', {value: APP_NAME, writable: false, configurable: false});
     Object.defineProperty(window, 'APP_VERSION', {value: APP_VERSION, writable: false, configurable: false});
   } catch(e) {}
+
+  // Remove leftover modals
+  ['swak-timeout-modal','swak-error-modal','swak-offline-wall'].forEach(id => {
+    document.getElementById(id)?.remove();
+  });
+
   appStarting = true;
   startupStatus = 'connecting';
-  rf(false);
+  rf(false);  // show loading screen immediately
 
-  // Check internet first using navigator.onLine
-  if(!navigator.onLine) {
+  // Tiny delay so browser renders the loading screen
+  await new Promise(r => setTimeout(r, 150));
+
+  // ── STEP 1: Check internet ──
+  const hasInternet = await checkInternetReachable();
+  if(!hasInternet) {
+    // Show offline modal and STOP — no server call
     updateConnectionStatus(false);
     appStarting = false;
-    const usedBefore = (() => { try { return localStorage.getItem('swak_used_before'); } catch(e){ return null; } })();
-    if(usedBefore) show('app'); else show('onboarding');
+    rf(false);
+    // Show offline modal (locked)
+    const frame = document.getElementById('frame');
+    if(frame && !document.getElementById('swak-offline-wall')) {
+      const wall = document.createElement('div');
+      wall.id = 'swak-offline-wall';
+      wall.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);backdrop-filter:blur(8px);z-index:2147483645;display:flex;align-items:center;justify-content:center;padding:16px';
+      wall.onclick = e => e.stopPropagation();
+      const bg = isDark?'#161B22':'#fff', tc = isDark?'#e6edf3':'#1a1a2e', sc = isDark?'#8b949e':'#666', bc = isDark?'#30363d':'#e1e4e8';
+      wall.innerHTML = `
+        <div style="background:${bg};border:1px solid ${bc};border-radius:16px;padding:28px 24px;width:100%;max-width:280px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.5)">
+          <div style="font-size:38px;margin-bottom:12px">📡</div>
+          <div style="font-size:14px;font-weight:800;color:${tc};margin-bottom:8px">${t('offlineTitle')||'No Internet Connection'}</div>
+          <div style="font-size:11px;color:${sc};line-height:1.6;margin-bottom:20px">${t('offlineDesc')||'Swak requires internet to verify your license.'}</div>
+          <button onclick="document.getElementById('swak-offline-wall')?.remove();startupFlow()"
+            style="width:100%;padding:10px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:8px;color:#0D1117;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;margin-bottom:8px">
+            🔄 ${t('retryConnection')||'Retry'}
+          </button>
+        </div>`;
+      frame.appendChild(wall);
+    }
     return;
   }
 
-  // Check localStorage for saved license key
+  // Internet OK — update status
+  updateConnectionStatus(true);
+
+  // ── STEP 2: Check for saved license ──
   let savedKey = null;
   try { savedKey = localStorage.getItem('swak_license_key'); } catch(e){}
-  await new Promise(r => setTimeout(r, 600)); // brief connecting animation
-  if(savedKey) {
-    startupStatus = 'checking';
+
+  if(!savedKey) {
+    // No license key — first time user → onboarding, no server call
+    startupStatus = 'ready';
+    await new Promise(r => setTimeout(r, 350));
+    appStarting = false;
+    show('onboarding');
+    const el = document.getElementById('opsCount');
+    if(el) el.textContent = totalOps();
+    return;
+  }
+
+  // ── STEP 3: Real server call with 20s timeout ──
+  startupStatus = 'checking';
+  rf(false);
+
+  let serverTimedOut = false;
+  const overallTimer = setTimeout(() => {
+    serverTimedOut = true;
+    appStarting = false;
     rf(false);
-    try {
-      const resp = await validateLicenseFromServer(savedKey);
-      applyServerLicense(resp, savedKey);
-      updateConnectionStatus(resp.valid !== undefined);
-      await new Promise(r => setTimeout(r, 400));
+    handleAuthResult(null, savedKey, null);
+  }, 20000);
+
+  try {
+    const resp = await validateLicenseFromServer(savedKey);
+    if(serverTimedOut) return;
+    clearTimeout(overallTimer);
+    appStarting = false;
+
+    // Case 1: No saved key → onboarding (already handled above)
+    // Cases 2-5: handleAuthResult shows modal and locks
+    // Case 6: success → enter app
+    handleAuthResult(resp, savedKey, () => {
       startupStatus = 'ready';
       rf(false);
-      await new Promise(r => setTimeout(r, 300));
-      appStarting = false;
       if(isPlanPro()) {
         show('app-pro');
-        // Show What's New on first launch of new version
-        const lastSeen = localStorage.getItem('swak_last_version');
+        startLicensePolling(savedKey);
+        const lastSeen = (() => { try { return localStorage.getItem('swak_last_version'); } catch(e){ return null; } })();
         if(lastSeen !== APP_VERSION) {
           showWhatsNew = true;
           try { localStorage.setItem('swak_last_version', APP_VERSION); } catch(e){}
@@ -3077,23 +3436,17 @@ async function startupFlow() {
       } else {
         show('app');
       }
-    } catch(e) {
-      updateConnectionStatus(false);
-      appStarting = false;
-      show('app');
-    }
-  } else {
-    // No saved key → go to onboarding (first time) or free app
-    updateConnectionStatus(false);
-    await new Promise(r => setTimeout(r, 400));
+    });
+  } catch(e) {
+    if(serverTimedOut) return;
+    clearTimeout(overallTimer);
     appStarting = false;
-    // If previously used free mode, go directly to free app
-    const usedBefore = (() => { try { return localStorage.getItem('swak_used_before'); } catch(e){ return null; } })();
-    if(usedBefore) show('app'); else show('onboarding');
+    // Network error during RPC
+    handleAuthResult(null, savedKey, null);
   }
-  // Update ops count
-  const el=document.getElementById('opsCount');
-  if(el) el.textContent=totalOps();
+
+  const el = document.getElementById('opsCount');
+  if(el) el.textContent = totalOps();
 }
 
 // Save license key to localStorage after successful activation
