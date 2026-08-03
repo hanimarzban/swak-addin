@@ -38,6 +38,7 @@ mark{background:#F59E0B22;color:#F59E0B;border-radius:2px;padding:0 1px}
 .result-row{border-bottom:1px solid #21262D22;padding:6px 0}
 .result-row:last-child{border-bottom:none}
 </style>
+
 </head>
 <body>
 
@@ -174,34 +175,45 @@ let licenseState = {
   lastValidated: null,
 };
 
-// ── SUPABASE RPC CALL (with timeout) ──
+// ── SUPABASE RPC CALL (Office-compatible, no AbortSignal) ──
 async function callSupabaseRPC(fnName, params = {}, timeoutMs = 8000) {
   const url = `${SUPABASE_URL}/rest/v1/rpc/${fnName}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Office srcdoc cannot clone AbortSignal or Headers via postMessage
+  // So we race a plain fetch (no signal) against a timeout promise
+  const fetchPromise = fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify(params),
+    // NO signal — AbortSignal cannot be cloned in Office iframe
+  });
+
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
+  );
+
   try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify(params),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
+    const resp = await Promise.race([fetchPromise, timeoutPromise]);
     if(!resp.ok) {
-      const err = await resp.text();
-      throw new Error(`RPC_${resp.status}`);
+      if(resp.status === 401 || resp.status === 403) throw new Error('INVALID_ANON_KEY');
+      if(resp.status === 404) throw new Error('SERVER_ERROR');
+      if(resp.status === 500) throw new Error('SERVER_ERROR_500');
+      throw new Error('SERVER_ERROR_' + resp.status);
     }
-    return resp.json();
+    const data = await resp.json();
+    return data;
   } catch(e) {
-    clearTimeout(timer);
-    if(e.name === 'AbortError') throw new Error('TIMEOUT');
-    throw e;
+    if(e.message === 'TIMEOUT') throw e;
+    if(e.message === 'INVALID_ANON_KEY') throw e;
+    if(e.message && e.message.startsWith('SERVER_ERROR')) throw e;
+    throw new Error('NETWORK_ERROR');
   }
 }
+
 
 // ── VALIDATE LICENSE FROM SUPABASE ──
 async function validateLicenseFromServer(key) {
@@ -229,11 +241,11 @@ async function validateLicenseFromServer(key) {
       firstActivation: result.first_activation || false,
     };
   } catch(e) {
-    // Network error
-    if(!navigator.onLine || e.message.includes('fetch')) {
-      return { valid: false, error: 'NETWORK_ERROR', errorCode: 'NETWORK_ERROR' };
-    }
-    return { valid: false, error: 'SERVER_ERROR', errorCode: 'SERVER_ERROR' };
+    const code = e.message || 'NETWORK_ERROR';
+    if(code === 'TIMEOUT') return { valid: false, error: 'TIMEOUT', errorCode: 'TIMEOUT' };
+    if(code === 'INVALID_ANON_KEY') return { valid: false, error: 'INVALID_ANON_KEY', errorCode: 'INVALID_ANON_KEY' };
+    if(code.startsWith('SERVER_ERROR')) return { valid: false, error: 'SERVER_ERROR', errorCode: 'SERVER_ERROR' };
+    return { valid: false, error: 'NETWORK_ERROR', errorCode: 'NETWORK_ERROR' };
   }
 }
 
@@ -717,13 +729,19 @@ var I18N = {
     revokedMsg:'This license has been revoked. Contact support.',
     suspendedMsg:'This license is temporarily suspended. Contact support.',
     rateLimitMsg:'Too many failed attempts. Wait 1 hour before trying again.',
-    renewNow:'Renew Now', networkError:'Network error. Please check your connection.', processing:'Processing...', enterLicense:'Enter License Key', backToOnboarding:'Back',
-    keyError_INVALID_KEY:'Invalid key. Keys must start with SWAK-',
+    renewNow:'Renew Now', networkError:'Unable to connect to Swak servers. Please try again.', processing:'Processing...', enterLicense:'Enter License Key', backToOnboarding:'Back',
+    keyError_INVALID_KEY:'Invalid key.',
     keyError_LICENSE_EXPIRED:'Your license has expired.',
     keyError_DEVICE_CONFLICT:'This license is active on another device.',
     keyError_RATE_LIMITED:'Too many attempts. Try again in 1 hour.',
     keyError_LICENSE_REVOKED:'This license has been revoked.',
     keyError_LICENSE_SUSPENDED:'This license is suspended.',
+    keyError_SERVER_ERROR:'Unable to reach Swak servers. Please check your internet and try again.',
+    keyError_NETWORK_ERROR:'Unable to connect. Please check your internet connection and try again.',
+    keyError_TIMEOUT:'Request timed out. Swak servers did not respond. Please try again.',
+    keyError_INVALID_ANON_KEY:'Activation service is temporarily unavailable. Please try again in a few minutes or contact support.',
+    keyError_404:'Service temporarily unavailable. Please try again or contact support at swaksoft.com/contact.',
+    keyError_500:'Our servers encountered an issue. Please try again in a few minutes.',
     inbox:'Inbox', inboxMessages:'message', inboxMessagesP:'messages', noMessages:'No messages', backToInbox:'← Back to Inbox',
     secure:'🔒 Secure', instantActivation:'⚡ Instant activation',
     daysLabel:'Days Remaining', expiresLabel:'Expires', deviceLabel:'Device',
@@ -786,13 +804,18 @@ var I18N = {
     revokedMsg:'این لایسنس باطل شده. با پشتیبانی تماس بگیرید.',
     suspendedMsg:'این لایسنس معلق است. با پشتیبانی تماس بگیرید.',
     rateLimitMsg:'تلاش‌های زیاد. ۱ ساعت دیگر امتحان کنید.',
-    renewNow:'تمدید اکنون', networkError:'خطای شبکه. اینترنت را بررسی کنید.', processing:'در حال پردازش...', enterLicense:'وارد کردن کلید لایسنس', backToOnboarding:'بازگشت',
-    keyError_INVALID_KEY:'کلید نامعتبر. باید با SWAK- شروع شود.',
+    renewNow:'تمدید اکنون', networkError:'اتصال به سرورهای Swak ممکن نشد. لطفاً دوباره امتحان کنید.', processing:'در حال پردازش...', enterLicense:'وارد کردن کلید لایسنس', backToOnboarding:'بازگشت',
+    keyError_INVALID_KEY:'کلید نامعتبر.',
     keyError_LICENSE_EXPIRED:'لایسنس منقضی شده.',
     keyError_DEVICE_CONFLICT:'این لایسنس روی دستگاه دیگری فعال است.',
     keyError_RATE_LIMITED:'تلاش‌های زیاد. ۱ ساعت صبر کنید.',
     keyError_LICENSE_REVOKED:'لایسنس باطل شده.',
     keyError_LICENSE_SUSPENDED:'لایسنس معلق است.',
+    keyError_SERVER_ERROR:'اتصال به سرورهای Swak ممکن نشد. اینترنت خود را بررسی کنید و دوباره امتحان کنید.',
+    keyError_NETWORK_ERROR:'اتصال ناموفق بود. سرورهای Swak در دسترس نیستند. لطفاً دوباره امتحان کنید.',
+    keyError_TIMEOUT:'زمان درخواست تمام شد. سرور پاسخ نداد. لطفاً دوباره امتحان کنید.',
+    keyError_INVALID_ANON_KEY:'احراز هویت سرور ناموفق بود. با پشتیبانی تماس بگیرید.',
+    keyError_500:'خطای داخلی سرور. لطفاً بعداً دوباره امتحان کنید.',
     inbox:'صندوق پیام', inboxMessages:'پیام', inboxMessagesP:'پیام', noMessages:'پیامی وجود ندارد', backToInbox:'→ بازگشت به صندوق',
     secure:'🔒 امن', instantActivation:'⚡ فعال‌سازی فوری',
     daysLabel:'روزهای باقی‌مانده', expiresLabel:'انقضا', deviceLabel:'دستگاه',
@@ -855,13 +878,18 @@ var I18N = {
     revokedMsg:'تم إلغاء الترخيص. اتصل بالدعم.',
     suspendedMsg:'الترخيص موقوف مؤقتاً. اتصل بالدعم.',
     rateLimitMsg:'محاولات فاشلة كثيرة. انتظر ساعة.',
-    renewNow:'جدّد الآن', networkError:'خطأ في الشبكة. تحقق من الاتصال.', processing:'جاري المعالجة...', enterLicense:'إدخال مفتاح الترخيص', backToOnboarding:'رجوع',
-    keyError_INVALID_KEY:'مفتاح غير صالح. يجب أن يبدأ بـ SWAK-',
+    renewNow:'جدّد الآن', networkError:'تعذّر الاتصال بخوادم Swak. يرجى المحاولة مجدداً.', processing:'جاري المعالجة...', enterLicense:'إدخال مفتاح الترخيص', backToOnboarding:'رجوع',
+    keyError_INVALID_KEY:'مفتاح غير صالح.',
     keyError_LICENSE_EXPIRED:'انتهت صلاحية الترخيص.',
     keyError_DEVICE_CONFLICT:'الترخيص مفعّل على جهاز آخر.',
     keyError_RATE_LIMITED:'محاولات كثيرة. انتظر ساعة.',
     keyError_LICENSE_REVOKED:'الترخيص ملغى.',
     keyError_LICENSE_SUSPENDED:'الترخيص موقوف.',
+    keyError_SERVER_ERROR:'تعذّر الاتصال بخوادم Swak. تحقق من اتصالك بالإنترنت وحاول مجدداً.',
+    keyError_NETWORK_ERROR:'فشل الاتصال. خوادم Swak غير متاحة. حاول مجدداً.',
+    keyError_TIMEOUT:'انتهت مهلة الطلب. لم يستجب الخادم. حاول مجدداً.',
+    keyError_INVALID_ANON_KEY:'فشل مصادقة الخادم. اتصل بالدعم.',
+    keyError_500:'خطأ داخلي في الخادم. حاول مجدداً لاحقاً.',
     inbox:'صندوق الرسائل', inboxMessages:'رسالة', inboxMessagesP:'رسائل', noMessages:'لا توجد رسائل', backToInbox:'→ العودة للصندوق',
     secure:'🔒 آمن', instantActivation:'⚡ تفعيل فوري',
     daysLabel:'الأيام المتبقية', expiresLabel:'الانتهاء', deviceLabel:'الجهاز',
@@ -871,6 +899,9 @@ var I18N = {
     support:'الدعم', share:'مشاركة',
     langs:'لغات', excelLabel:'إكسل', perMo:'/شهر', per3mo:'/٣ أشهر', per6mo:'/٦ أشهر',
     tools:'أدوات', ops:'عمليات', free:'مجاني', back:'رجوع',
+    internetRequiredTitle:'🌐 الإنترنت مطلوب', internetRequiredDesc:'يجب توفر اتصال إنترنت نشط دائمًا. في حال انقطاع الاتصال، سيكون Swak غير متاح مؤقتًا.',
+    mandatoryUpdateTitle:'⚡ تحديثات إلزامية', mandatoryUpdateDesc:'عند إصدار تحديث إلزامي، سيتم تأمين الإضافة حتى اكتمال التحديث.',
+    termsTitle:'📋 شروط الاستخدام', termsDesc:'بالتفعيل توافق على: (١) ترخيص واحد = جهاز واحد؛ (٢) لا هندسة عكسية؛ (٣) الإنترنت مطلوب؛ (٤) يجب تثبيت التحديثات الإلزامية. الشروط الكاملة:',
   },
   de: {
     appTitle:'Schweizer Taschenmesser', appSubtitle:'DATEN-TOOLS', instant:'Sofort',
@@ -920,9 +951,20 @@ var I18N = {
     keyDesc:'Nach dem Kauf finden Sie den Schlüssel in Ihrer E-Mail bei',
     langs:'Sprachen', excelLabel:'Excel', perMo:'/Mo', per3mo:'/3Mo', per6mo:'/6Mo',
     tools:'Tools', ops:'Ops', free:'Kostenlos', back:'Zurück',
-    internetRequiredTitle:'🌐 Internet Required', internetRequiredDesc:'An active internet connection is required. If your connection drops, Swak will be temporarily unavailable.',
-    mandatoryUpdateTitle:'⚡ Mandatory Updates', mandatoryUpdateDesc:'When a required update is released, the add-in will be locked until updated.',
-    termsTitle:'📋 Terms of Use', termsDesc:'By activating, you agree: (1) One license = one device; (2) No reverse engineering; (3) Internet required; (4) Mandatory updates must be installed. Full terms:',
+    internetRequiredTitle:'🌐 Internetverbindung erforderlich', internetRequiredDesc:'Eine aktive Internetverbindung ist jederzeit erforderlich. Bei Verbindungsabbruch ist Swak vorübergehend nicht verfügbar.',
+    mandatoryUpdateTitle:'⚡ Pflicht-Updates', mandatoryUpdateDesc:'Bei einem Pflicht-Update wird das Add-in gesperrt, bis das Update installiert wurde.',
+    termsTitle:'📋 Nutzungsbedingungen', termsDesc:'Mit der Aktivierung stimmen Sie zu: (1) Eine Lizenz = ein Gerät; (2) Kein Reverse Engineering; (3) Internet erforderlich; (4) Pflicht-Updates müssen installiert werden. Vollständige Bedingungen:',
+    keyError_INVALID_KEY:'Ungültiger Schlüssel.',
+    keyError_LICENSE_EXPIRED:'Ihre Lizenz ist abgelaufen. Bitte verlängern Sie Ihren Plan.',
+    keyError_DEVICE_CONFLICT:'Diese Lizenz ist bereits auf einem anderen Gerät aktiv.',
+    keyError_RATE_LIMITED:'Zu viele Versuche. Bitte warten Sie 1 Stunde und versuchen Sie es erneut.',
+    keyError_LICENSE_REVOKED:'Diese Lizenz wurde widerrufen. Bitte kontaktieren Sie den Support.',
+    keyError_LICENSE_SUSPENDED:'Diese Lizenz ist vorübergehend gesperrt. Bitte kontaktieren Sie den Support.',
+    keyError_SERVER_ERROR:'Verbindung zu Swak-Servern nicht möglich. Bitte überprüfen Sie Ihre Internetverbindung.',
+    keyError_NETWORK_ERROR:'Verbindung fehlgeschlagen. Swak-Server konnten nicht erreicht werden. Bitte erneut versuchen.',
+    keyError_TIMEOUT:'Zeitüberschreitung. Die Swak-Server haben nicht geantwortet. Bitte erneut versuchen.',
+    keyError_INVALID_ANON_KEY:'Serverauthentifizierung fehlgeschlagen. Bitte kontaktieren Sie den Support.',
+    keyError_500:'Interner Serverfehler. Bitte versuchen Sie es später erneut.',
   },
   fr: {
     appTitle:'Couteau Suisse', appSubtitle:'OUTILS DE DONNÉES', instant:'Instantané',
@@ -943,7 +985,7 @@ var I18N = {
     title:'Couteau Suisse', subtitle:'OUTILS DE DONNÉES',
     connected:'Connecté', searchPh:'Rechercher des outils...',
     freeBadge:'GRATUIT', upgrade:'Mettre à niveau — 51 outils',
-    haveKey:"J'ai déjà une clé de licence",
+    haveKey:"J\'ai déjà une clé de licence",
     activateBtn:'Activer la licence', enterKey:'Entrer la clé de licence',
     keyDesc:'Vérifiez votre e-mail après achat sur', back:'Retour',
     secTitle:'Sécurité', secDesc:'Chaque licence est activée sur exactement 1 ordinateur et ne peut pas être activée sur un autre appareil. Cela garantit que votre licence est toujours disponible pour votre usage personnel.',
@@ -972,9 +1014,20 @@ var I18N = {
     keyDesc:'Trouvez la clé dans votre e-mail après l\'achat sur',
     langs:'langues', excelLabel:'Excel', perMo:'/mois', per3mo:'/3 mois', per6mo:'/6 mois',
     tools:'outils', ops:'ops', free:'Gratuit', back:'Retour',
-    internetRequiredTitle:'🌐 Internet Required', internetRequiredDesc:'An active internet connection is required. If your connection drops, Swak will be temporarily unavailable.',
-    mandatoryUpdateTitle:'⚡ Mandatory Updates', mandatoryUpdateDesc:'When a required update is released, the add-in will be locked until updated.',
-    termsTitle:'📋 Terms of Use', termsDesc:'By activating, you agree: (1) One license = one device; (2) No reverse engineering; (3) Internet required; (4) Mandatory updates must be installed. Full terms:',
+    internetRequiredTitle:'🌐 Connexion Internet requise', internetRequiredDesc:'Une connexion Internet active est requise en permanence. En cas de coupure, Swak sera temporairement indisponible.',
+    mandatoryUpdateTitle:'⚡ Mises à jour obligatoires', mandatoryUpdateDesc:'Lors d\'une mise à jour obligatoire, le module sera bloqué jusqu\'à la mise à jour.',
+    termsTitle:'📋 Conditions d\'utilisation', termsDesc:'En activant, vous acceptez : (1) Une licence = un appareil ; (2) Pas d\'ingénierie inverse ; (3) Internet requis ; (4) Les mises à jour obligatoires doivent être installées. Conditions complètes :',
+    keyError_INVALID_KEY:'Clé invalide.',
+    keyError_LICENSE_EXPIRED:'Votre licence a expiré. Veuillez renouveler votre abonnement.',
+    keyError_DEVICE_CONFLICT:'Cette licence est déjà active sur un autre appareil.',
+    keyError_RATE_LIMITED:'Trop de tentatives. Veuillez attendre 1 heure avant de réessayer.',
+    keyError_LICENSE_REVOKED:'Cette licence a été révoquée. Veuillez contacter le support.',
+    keyError_LICENSE_SUSPENDED:'Cette licence est temporairement suspendue. Veuillez contacter le support.',
+    keyError_SERVER_ERROR:'Impossible de se connecter aux serveurs Swak. Vérifiez votre connexion Internet.',
+    keyError_NETWORK_ERROR:'Connexion échouée. Les serveurs Swak sont inaccessibles. Veuillez réessayer.',
+    keyError_TIMEOUT:'Délai dépassé. Les serveurs Swak n\'ont pas répondu. Veuillez réessayer.',
+    keyError_INVALID_ANON_KEY:'Authentification serveur échouée. Veuillez contacter le support.',
+    keyError_500:'Erreur serveur interne. Veuillez réessayer plus tard.',
   },
   es: {
     appTitle:'Navaja Suiza', appSubtitle:'HERRAMIENTAS', instant:'Instantáneo',
@@ -1024,9 +1077,20 @@ var I18N = {
     keyDesc:'Encuentra la clave en tu correo después de la compra en',
     langs:'idiomas', excelLabel:'Excel', perMo:'/mes', per3mo:'/3 meses', per6mo:'/6 meses',
     tools:'herramientas', ops:'ops', free:'Gratis', back:'Volver',
-    internetRequiredTitle:'🌐 Internet Required', internetRequiredDesc:'An active internet connection is required. If your connection drops, Swak will be temporarily unavailable.',
-    mandatoryUpdateTitle:'⚡ Mandatory Updates', mandatoryUpdateDesc:'When a required update is released, the add-in will be locked until updated.',
-    termsTitle:'📋 Terms of Use', termsDesc:'By activating, you agree: (1) One license = one device; (2) No reverse engineering; (3) Internet required; (4) Mandatory updates must be installed. Full terms:',
+    internetRequiredTitle:'🌐 Conexión a Internet requerida', internetRequiredDesc:'Se requiere una conexión a Internet activa en todo momento. Si se interrumpe, Swak no estará disponible temporalmente.',
+    mandatoryUpdateTitle:'⚡ Actualizaciones obligatorias', mandatoryUpdateDesc:'Cuando se publique una actualización obligatoria, el add-in se bloqueará hasta que se instale.',
+    termsTitle:'📋 Términos de uso', termsDesc:'Al activar, acepta: (1) Una licencia = un dispositivo; (2) Sin ingeniería inversa; (3) Internet requerido; (4) Las actualizaciones obligatorias deben instalarse. Términos completos:',
+    keyError_INVALID_KEY:'Clave inválida.',
+    keyError_LICENSE_EXPIRED:'Su licencia ha expirado. Por favor renueve su suscripción.',
+    keyError_DEVICE_CONFLICT:'Esta licencia ya está activa en otro dispositivo.',
+    keyError_RATE_LIMITED:'Demasiados intentos. Por favor espere 1 hora antes de intentarlo de nuevo.',
+    keyError_LICENSE_REVOKED:'Esta licencia ha sido revocada. Por favor contacte al soporte.',
+    keyError_LICENSE_SUSPENDED:'Esta licencia está temporalmente suspendida. Por favor contacte al soporte.',
+    keyError_SERVER_ERROR:'No se puede conectar a los servidores de Swak. Verifique su conexión a Internet.',
+    keyError_NETWORK_ERROR:'Conexión fallida. No se pudo alcanzar a los servidores de Swak. Por favor intente de nuevo.',
+    keyError_TIMEOUT:'Tiempo de espera agotado. Los servidores de Swak no respondieron. Por favor intente de nuevo.',
+    keyError_INVALID_ANON_KEY:'Error de autenticación del servidor. Por favor contacte al soporte.',
+    keyError_500:'Error interno del servidor. Por favor intente más tarde.',
   },
   zh: {
     appTitle:'瑞士军刀', appSubtitle:'数据工具', instant:'即时',
@@ -1076,9 +1140,20 @@ var I18N = {
     keyDesc:'购买后请在以下网站查收邮件中的密钥',
     langs:'种语言', excelLabel:'Excel', perMo:'/月', per3mo:'/3月', per6mo:'/6月',
     tools:'工具', ops:'操作', free:'免费', back:'返回',
-    internetRequiredTitle:'🌐 Internet Required', internetRequiredDesc:'An active internet connection is required. If your connection drops, Swak will be temporarily unavailable.',
-    mandatoryUpdateTitle:'⚡ Mandatory Updates', mandatoryUpdateDesc:'When a required update is released, the add-in will be locked until updated.',
-    termsTitle:'📋 Terms of Use', termsDesc:'By activating, you agree: (1) One license = one device; (2) No reverse engineering; (3) Internet required; (4) Mandatory updates must be installed. Full terms:',
+    internetRequiredTitle:'🌐 需要网络连接', internetRequiredDesc:'始终需要活动的网络连接。如果连接中断，Swak将暂时不可用。',
+    mandatoryUpdateTitle:'⚡ 强制更新', mandatoryUpdateDesc:'发布强制更新时，插件将被锁定直到完成更新。',
+    termsTitle:'📋 使用条款', termsDesc:'激活即表示您同意：(1) 一个许可证 = 一台设备；(2) 禁止反向工程；(3) 需要网络连接；(4) 必须安装强制更新。完整条款：',
+    keyError_INVALID_KEY:'无效密钥。',
+    keyError_LICENSE_EXPIRED:'您的许可证已过期，请续订您的套餐。',
+    keyError_DEVICE_CONFLICT:'此许可证已在另一台设备上激活。',
+    keyError_RATE_LIMITED:'尝试次数过多，请等待1小时后重试。',
+    keyError_LICENSE_REVOKED:'此许可证已被撤销，请联系客服。',
+    keyError_LICENSE_SUSPENDED:'此许可证已被暂停，请联系客服。',
+    keyError_SERVER_ERROR:'无法连接到 Swak 服务器，请检查您的网络连接。',
+    keyError_NETWORK_ERROR:'连接失败，无法访问 Swak 服务器，请重试。',
+    keyError_TIMEOUT:'请求超时，Swak 服务器未响应，请重试。',
+    keyError_INVALID_ANON_KEY:'服务器验证失败，请联系客服。',
+    keyError_500:'服务器内部错误，请稍后重试。',
   },
   ru: {
     appTitle:'Швейцарский Нож', appSubtitle:'ИНСТРУМЕНТЫ', instant:'Мгновенно',
@@ -1128,9 +1203,20 @@ var I18N = {
     keyDesc:'После покупки найдите ключ в письме на',
     langs:'языков', excelLabel:'Excel', perMo:'/мес', per3mo:'/3 мес', per6mo:'/6 мес',
     tools:'инструментов', ops:'операций', free:'Бесплатно', back:'Назад',
-    internetRequiredTitle:'🌐 Internet Required', internetRequiredDesc:'An active internet connection is required. If your connection drops, Swak will be temporarily unavailable.',
-    mandatoryUpdateTitle:'⚡ Mandatory Updates', mandatoryUpdateDesc:'When a required update is released, the add-in will be locked until updated.',
-    termsTitle:'📋 Terms of Use', termsDesc:'By activating, you agree: (1) One license = one device; (2) No reverse engineering; (3) Internet required; (4) Mandatory updates must be installed. Full terms:',
+    internetRequiredTitle:'🌐 Требуется интернет', internetRequiredDesc:'Постоянное активное подключение к интернету обязательно. При обрыве связи Swak будет временно недоступен.',
+    mandatoryUpdateTitle:'⚡ Обязательные обновления', mandatoryUpdateDesc:'При выходе обязательного обновления приложение будет заблокировано до его установки.',
+    termsTitle:'📋 Условия использования', termsDesc:'Активируя, вы соглашаетесь: (1) Одна лицензия = одно устройство; (2) Запрещён реверс-инжиниринг; (3) Требуется интернет; (4) Обязательные обновления должны устанавливаться. Полные условия:',
+    keyError_INVALID_KEY:'Неверный ключ.',
+    keyError_LICENSE_EXPIRED:'Ваша лицензия истекла. Пожалуйста, продлите подписку.',
+    keyError_DEVICE_CONFLICT:'Эта лицензия уже активирована на другом устройстве.',
+    keyError_RATE_LIMITED:'Слишком много попыток. Подождите 1 час и попробуйте снова.',
+    keyError_LICENSE_REVOKED:'Эта лицензия была отозвана. Обратитесь в поддержку.',
+    keyError_LICENSE_SUSPENDED:'Эта лицензия временно приостановлена. Обратитесь в поддержку.',
+    keyError_SERVER_ERROR:'Не удаётся подключиться к серверам Swak. Проверьте интернет-соединение.',
+    keyError_NETWORK_ERROR:'Подключение не удалось. Серверы Swak недоступны. Попробуйте ещё раз.',
+    keyError_TIMEOUT:'Время ожидания истекло. Серверы Swak не ответили. Попробуйте ещё раз.',
+    keyError_INVALID_ANON_KEY:'Ошибка аутентификации сервера. Обратитесь в поддержку.',
+    keyError_500:'Внутренняя ошибка сервера. Попробуйте позже.',
   },
   hi: {
     appTitle:'स्विस आर्मी नाइफ', appSubtitle:'डेटा टूल्स', instant:'तुरंत',
@@ -1180,9 +1266,20 @@ var I18N = {
     keyDesc:'खरीद के बाद अपने ईमेल में कुंजी देखें',
     langs:'भाषाएँ', excelLabel:'Excel', perMo:'/माह', per3mo:'/3 माह', per6mo:'/6 माह',
     tools:'उपकरण', ops:'ऑप्स', free:'मुफ़्त', back:'वापस',
-    internetRequiredTitle:'🌐 Internet Required', internetRequiredDesc:'An active internet connection is required. If your connection drops, Swak will be temporarily unavailable.',
-    mandatoryUpdateTitle:'⚡ Mandatory Updates', mandatoryUpdateDesc:'When a required update is released, the add-in will be locked until updated.',
-    termsTitle:'📋 Terms of Use', termsDesc:'By activating, you agree: (1) One license = one device; (2) No reverse engineering; (3) Internet required; (4) Mandatory updates must be installed. Full terms:',
+    internetRequiredTitle:'🌐 इंटरनेट आवश्यक है', internetRequiredDesc:'हर समय सक्रिय इंटरनेट कनेक्शन आवश्यक है। कनेक्शन टूटने पर Swak अस्थायी रूप से अनुपलब्ध रहेगा।',
+    mandatoryUpdateTitle:'⚡ अनिवार्य अपडेट', mandatoryUpdateDesc:'अनिवार्य अपडेट जारी होने पर, अपडेट इंस्टॉल होने तक ऐप लॉक रहेगा।',
+    termsTitle:'📋 उपयोग की शर्तें', termsDesc:'सक्रिय करने पर आप सहमत हैं: (1) एक लाइसेंस = एक डिवाइस; (2) रिवर्स इंजीनियरिंग नहीं; (3) इंटरनेट आवश्यक; (4) अनिवार्य अपडेट इंस्टॉल करने होंगे। पूर्ण शर्तें:',
+    keyError_INVALID_KEY:'अमान्य कुंजी।',
+    keyError_LICENSE_EXPIRED:'आपका लाइसेंस समाप्त हो गया है। कृपया अपनी सदस्यता नवीनीकृत करें।',
+    keyError_DEVICE_CONFLICT:'यह लाइसेंस पहले से किसी अन्य डिवाइस पर सक्रिय है।',
+    keyError_RATE_LIMITED:'बहुत अधिक प्रयास। कृपया 1 घंटे प्रतीक्षा करें और पुनः प्रयास करें।',
+    keyError_LICENSE_REVOKED:'यह लाइसेंस रद्द कर दिया गया है। कृपया सहायता से संपर्क करें।',
+    keyError_LICENSE_SUSPENDED:'यह लाइसेंस अस्थायी रूप से निलंबित है। कृपया सहायता से संपर्क करें।',
+    keyError_SERVER_ERROR:'Swak सर्वर से कनेक्ट नहीं हो पा रहे। अपना इंटरनेट कनेक्शन जांचें।',
+    keyError_NETWORK_ERROR:'कनेक्शन विफल। Swak सर्वर तक नहीं पहुंचा जा सका। कृपया पुनः प्रयास करें।',
+    keyError_TIMEOUT:'अनुरोध समय समाप्त। Swak सर्वर ने प्रतिक्रिया नहीं दी। कृपया पुनः प्रयास करें।',
+    keyError_INVALID_ANON_KEY:'सर्वर प्रमाणीकरण विफल। कृपया सहायता से संपर्क करें।',
+    keyError_500:'आंतरिक सर्वर त्रुटि। कृपया बाद में पुनः प्रयास करें।',
   },
 };
 function t(key) { return (I18N[lang]||I18N['en'])[key] || key; }
@@ -2015,12 +2112,12 @@ function renderOnboarding(){
   ];
 
   // Individual prices
-  const indP={monthly:{p:11.99,note:''},quarterly:{p:32.37,note:null,savePer:'10.79'},semi:{p:57.55,note:null,savePer:'9.59'}};
+  const indP={monthly:{p:14.99,note:''},quarterly:{p:40.47,note:null,savePer:'13.49'},semi:{p:71.95,note:null,savePer:'11.99'}};
   // Corporate unified (best value per seat shown)
   const corpP={
-    monthly: {team:{p:49.95,note:'$9.99/seat'},biz:{p:89.90,note:'$8.99/seat'},ent:{p:799,note:'$7.99/seat'}},
-    quarterly:{team:{p:134.87,note:'$8.99/seat'},biz:{p:242.73,note:'$8.09/seat'},ent:{p:2157,note:'$7.19/seat'}},
-    semi:    {team:{p:239.76,note:'$7.99/seat'},biz:{p:431.52,note:'$7.19/seat'},ent:{p:3836,note:'$6.39/seat'}},
+    monthly: {team:{p:59.95,note:'$11.99/seat'},biz:{p:109.90,note:'$10.99/seat'},ent:{p:899,note:'$8.99/seat'}},
+    quarterly:{team:{p:161.87,note:'$10.79/seat'},biz:{p:296.73,note:'$9.89/seat'},ent:{p:2427,note:'$8.09/seat'}},
+    semi:    {team:{p:287.76,note:'$9.59/seat'},biz:{p:527.52,note:'$8.79/seat'},ent:{p:4315,note:'$7.19/seat'}},
   };
   const period = (['monthly','quarterly','semi'].includes(planPeriod)?planPeriod:'monthly');
   const ip = indP[period];
@@ -2192,7 +2289,8 @@ function renderOnboarding(){
 
 function renderKeyInput(){
   const keyState = window._keyState || 'idle';
-  const keyError = window._keyError || '';
+  const keyErrorCode = window._keyErrorCode || '';
+  const keyError = keyErrorCode ? (t('keyError_'+keyErrorCode)||keyErrorCode) : '';
   const isRtl = isRTL();
   const isChangingLicense = licenseState.valid && licenseState.licenseKey;
   const changingMode = window._changingMode || false; // true = editing enabled
@@ -2254,6 +2352,8 @@ function renderKeyInput(){
           placeholder="${isChangingLicense&&!changingMode?maskedKey:'SWAK-XXXX-XXXX-XXXX-XXXX'}"
           value="${isChangingLicense&&!changingMode?(licenseState.licenseKey||''):''}"
           oninput="${changingMode||!isChangingLicense?'checkKey(this.value)':''}"
+          onpaste="if(changingMode||!window._isChangingLicense){const t=event.clipboardData?.getData('text')||'';const s=t.replace(/[^A-Za-z0-9\\-]/g,'');if(s!==t){event.preventDefault();const san=s.substring(0,20).toUpperCase();const i=document.getElementById('keyIn');if(i){i.value=san;checkKey(san);}};}"
+          onkeydown="const c=event.key;if(c.length===1&&!/[A-Za-z0-9\\-]/.test(c)){event.preventDefault();}"
           ${isChangingLicense&&!changingMode?'disabled':''}
           style="width:100%;background:${isChangingLicense&&!changingMode?C().bg3:keyState==='error'?isDark?'#2A0F0F':'#FFEBE9':keyState==='success'?isDark?'#0F2A1A':'#DAFBE1':C().bg2};border:1px solid ${keyState==='error'?'#F87171':keyState==='success'?'#4ADE80':C().border2};border-radius:6px;color:${isChangingLicense&&!changingMode?C().text4:C().text};font-size:11px;padding:10px 36px 10px 12px;box-sizing:border-box;font-family:monospace;letter-spacing:.06em;text-align:center;transition:all .2s;cursor:${isChangingLicense&&!changingMode?'default':'text'}"/>
         <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:15px">${keyState==='success'?'<span style="color:#4ADE80">✓</span>':keyState==='error'?'<span style="color:#F87171">✗</span>':keyState==='validating'?'⟳':isChangingLicense&&!changingMode?'<span style="color:#4ADE80;font-size:12px">🔒</span>':''}</span>
@@ -2330,11 +2430,6 @@ function renderKeyInput(){
           <span style="font-size:11px">❓</span><span style="font-size:10px;color:${C().text3}">${t('faqHelp')||'FAQ & Help center'}</span><span style="margin-left:auto;font-size:10px;color:${C().text4}">→</span>
         </a>
       </div>
-      <!-- PREVIEW DEMO NOTE -->
-      ${!isChangingLicense?`<div style="margin-top:10px;padding:8px 10px;background:${isDark?'#0A1929':'#E6F4FF'};border-radius:6px;border:1px solid #60A5FA33">
-        <div style="font-size:10px;color:#60A5FA;font-weight:700;margin-bottom:3px">🔍 Preview Demo</div>
-        <div style="font-size:10px;color:${C().text4};line-height:1.5">Enter any key starting with <code style="background:${C().bg3};padding:1px 4px;border-radius:3px;font-size:9px">SWAK-</code> (min 15 chars) to simulate activation and see the "Change License" screen.</div>
-      </div>`:''}
     </div></div>
     <!-- KEY INPUT FOOTER -->
     <div style="padding:10px 14px;border-top:1px solid ${C().border};background:${C().bg2};flex-shrink:0">
@@ -3027,7 +3122,15 @@ function showLicenseErrorModal(errorCode) {
 
 function show(s){
   if(s==='keyinput') window._keyPrevScreen = currentScreen || 'onboarding';
-  if(s!=='keyinput') window._changingMode = false; // reset change mode when leaving
+  if(s!=='keyinput'){
+    // reset کامل وقتی از صفحه license خارج می‌شویم
+    window._changingMode = false;
+    window._keyState = 'idle';
+    window._keyValid = false;
+    window._keyErrorCode = '';
+    // پاک کردن textbox
+    setTimeout(()=>{const i=document.getElementById('keyIn');if(i&&!window._isChangingLicense){i.value='';}},10);
+  }
   if(s==='app'||s==='app-pro') try{ localStorage.setItem('swak_used_before','1'); }catch(e){}
   currentScreen=s;
   activeToolPanel=null;
@@ -3069,12 +3172,27 @@ function handleKey(e,isPro){
   else if(e.key==='Escape'){clearQ(isPro);}
 }
 
+function sanitizeLicenseInput(v){
+  // فقط حروف انگلیسی، اعداد و خط تیره مجاز است
+  return v.replace(/[^A-Za-z0-9\-]/g,'').toUpperCase().substring(0,20);
+}
+function isValidLicenseFormat(v){
+  const s=v.trim();
+  return s.length===20 && s.startsWith('SWAK');
+}
 function checkKey(v){
-  const ok=v.trim().length>=10;
+  // sanitize اول
+  const inp=document.getElementById('keyIn');
+  const sanitized=sanitizeLicenseInput(v);
+  if(inp && inp.value!==sanitized){
+    const pos=inp.selectionStart;
+    inp.value=sanitized;
+    try{inp.setSelectionRange(pos,pos);}catch(e){}
+  }
+  const ok=isValidLicenseFormat(sanitized);
   window._keyValid=ok;
   window._keyState='idle';
   window._keyError='';
-  // Update button without full re-render
   const btn=document.getElementById('actBtn');
   if(btn){
     btn.disabled=!ok;btn.style.opacity=ok?'1':'.5';
@@ -3089,7 +3207,7 @@ function removeLicense(){
   updateConnectionStatus(false);
   window._keyState='idle';
   window._keyValid=false;
-  window._keyError='';
+  window._keyErrorCode='';
   showT('success', t('licenseRemoved')||'License removed. Switched to Free plan.');
   setTimeout(()=>show('app'), 1200);
 }
@@ -3112,8 +3230,11 @@ function activateLicenseFinal(){
 }
 
 async function simulateActivation(){
-  const v=(document.getElementById('keyIn')?.value||'').trim();
+  const v=sanitizeLicenseInput(document.getElementById('keyIn')?.value||'');
+  // لایه اول: بررسی _keyValid
   if(!window._keyValid){showT('error',t('toastInvalidKey'));return;}
+  // لایه دوم: بررسی مستقل فرمت (حتی اگر دکمه به زور فعال شده باشد)
+  if(!isValidLicenseFormat(v)){showT('error',t('toastInvalidKey'));return;}
 
   // Check internet before attempting
   if(!navigator.onLine) {
@@ -3143,7 +3264,19 @@ async function simulateActivation(){
 
     if(resp.errorCode === 'NETWORK_ERROR') {
       window._keyState='error';
-      window._keyError = t('networkError')||'Network error. Please check your connection.';
+      window._keyErrorCode='NETWORK_ERROR';
+      rf(false);
+      return;
+    }
+    if(resp.errorCode === 'TIMEOUT') {
+      window._keyState='error';
+      window._keyErrorCode='TIMEOUT';
+      rf(false);
+      return;
+    }
+    if(resp.errorCode === 'INVALID_ANON_KEY' || resp.errorCode === 'SERVER_ERROR') {
+      window._keyState='error';
+      window._keyErrorCode='SERVER_ERROR';
       rf(false);
       return;
     }
@@ -3152,11 +3285,11 @@ async function simulateActivation(){
       applyServerLicense(resp, v);
       saveKeyToStorage(v);
       window._keyState='success';
-      window._keyError='';
+      window._keyErrorCode='';
       rf(false);
     } else {
       window._keyState='error';
-      window._keyError = t('keyError_'+resp.errorCode) || t('keyErrorInvalid') || 'Invalid license key.';
+      window._keyErrorCode=resp.errorCode||'INVALID_KEY';
       // Show specific error modal for serious errors
       if(['LICENSE_REVOKED','LICENSE_SUSPENDED','RATE_LIMITED','DEVICE_CONFLICT'].includes(resp.errorCode)) {
         setTimeout(()=>showLicenseErrorModal(resp.errorCode), 400);
@@ -3165,19 +3298,19 @@ async function simulateActivation(){
     }
   } catch(e) {
     window._keyState='error';
-    window._keyError = t('serverError')||'An error occurred. Please try again.';
+    window._keyErrorCode='SERVER_ERROR';
     rf(false);
   }
 }
 function handlePlan(id){
-  if(id==='free'){show('app');}
-  else if(id.startsWith('corp')){
-    show('app-pro');
-    const names={'corp-5':'Team (5 users)','corp-10':'Business (10 users)','corp-unlimited':'Enterprise (unlimited)'};
-    showT('success','✓ '+(names[id]||'Corporate')+' plan activated! (Preview simulation)');
-  } else {
-    show('app-pro');showT('success', t('toastProSim'));
+  if(id==='free'){
+    // Continue free — enter app
+    show('app');
+    return;
   }
+  // All paid plans → go to website to purchase
+  const period = window._planPeriod || 'monthly';
+  window.open('https://swaksoft.com/buy?plan='+id+'&period='+period, '_blank');
 }
 
 let _tt=null;
