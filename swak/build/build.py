@@ -131,7 +131,7 @@ def compile_module(module_name):
 
     dest = COMPILED_DIR / built[0].name
     shutil.move(str(built[0]), str(dest))
-    print(f'[OK] {module_name} → {dest.name}')
+    print(f'[OK] {module_name} -> {dest.name}')
     return True
 
 def clean_compiled():
