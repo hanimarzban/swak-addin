@@ -3,8 +3,8 @@ name: Build & Release SWAK Setup
 on:
   push:
     tags:
-      - 'v*'          # مثلاً: v2.0.0 → release میسازه
-  workflow_dispatch:  # دستی از GitHub UI هم میتونی اجرا کنی
+      - 'v*'
+  workflow_dispatch:
     inputs:
       version:
         description: 'Version (e.g. 2.0.1)'
@@ -12,46 +12,43 @@ on:
         default: '2.0.0'
 
 permissions:
-  contents: write   # برای آپلود به Releases
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-      # ─── 1. Checkout ────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ─── 2. Python 3.11 ─────────────────────────────────────────────────
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
 
-      # ─── 3. Install dependencies ────────────────────────────────────────
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install cython numpy
           pip install -r swak/server/requirements.txt
         shell: pwsh
 
-      # ─── 4. Cython compile ──────────────────────────────────────────────
+      - name: Install Visual Studio Build Tools
+        uses: microsoft/setup-msbuild@v2
+
       - name: Compile modules with Cython
         run: |
-          cd swak
-          python build/build.py
+          python swak/build/build.py
         shell: pwsh
 
-      # ─── 5. PyInstaller → swak_runtime.exe ─────────────────────────────
       - name: Build executable with PyInstaller
         run: |
           cd swak
           pyinstaller build/swak_runtime.spec
         shell: pwsh
 
-      # ─── 6. Inno Setup → SWAK_Runtime_Setup_vX.X.X.exe ─────────────────
       - name: Install Inno Setup
         run: |
           choco install innosetup --yes --no-progress
@@ -78,7 +75,6 @@ jobs:
             swak/build/swak_installer.iss
         shell: pwsh
 
-      # ─── 7. Upload to GitHub Release ────────────────────────────────────
       - name: Create GitHub Release and upload installer
         uses: softprops/action-gh-release@v2
         with:
@@ -86,14 +82,7 @@ jobs:
           name: SWAK Data Tools v${{ steps.version.outputs.VERSION }}
           body: |
             ## SWAK Data Tools Runtime v${{ steps.version.outputs.VERSION }}
-
-            ### نصب
-            1. فایل `SWAK_Runtime_Setup_v${{ steps.version.outputs.VERSION }}.exe` را دانلود کنید
-            2. اجرا کنید و مراحل نصب را دنبال کنید
-            3. Add-in اکسل را فعال کنید
-
             ### دانلود مستقیم
-            لینک همیشگی آخرین نسخه:
             ```
             https://github.com/${{ github.repository }}/releases/latest/download/SWAK_Runtime_Setup_latest.exe
             ```
@@ -102,12 +91,10 @@ jobs:
           files: |
             swak/dist/SWAK_Runtime_Setup_v${{ steps.version.outputs.VERSION }}.exe
 
-      # ─── 8. Upload "latest" copy (برای لینک ثابت) ──────────────────────
       - name: Copy installer as "latest"
         run: |
           $v = "${{ steps.version.outputs.VERSION }}"
-          Copy-Item "swak/dist/SWAK_Runtime_Setup_v$v.exe" `
-                    "swak/dist/SWAK_Runtime_Setup_latest.exe"
+          Copy-Item "swak/dist/SWAK_Runtime_Setup_v$v.exe" "swak/dist/SWAK_Runtime_Setup_latest.exe"
         shell: pwsh
 
       - name: Upload "latest" to release
