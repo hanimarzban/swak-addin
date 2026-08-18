@@ -44,7 +44,7 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "autostart";   Description: "Start SWAK Runtime automatically when Windows starts"; GroupDescription: "Additional tasks:"; Flags: checked
-Name: "desktopicon"; Description: "Create desktop shortcut";                               GroupDescription: "Additional tasks:"; Flags: unchecked
+Name: "desktopicon"; Description: "Create desktop shortcut";                               GroupDescription: "Additional tasks:"
 
 [Files]
 ; Main executable + all bundled files (PyInstaller one-file)
