@@ -13,16 +13,16 @@
   font-display: swap;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0a0e1a;font-family:'Inter','Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px 16px 40px}
-.frame{width:320px;border-radius:14px;overflow:hidden;border:1px solid #21262D;box-shadow:0 0 60px #4ADE8018,0 24px 80px #000000aa;position:relative}
-.frame.light-frame{border-color:#D0D7DE;box-shadow:0 0 40px #1A7F3718,0 16px 40px #00000022}
+body{margin:0;padding:0;overflow:hidden;background:#0a0e1a;font-family:'Inter','Segoe UI',system-ui,sans-serif;}
+.frame{width:100%;height:100vh;overflow-y:auto;overflow-x:hidden;position:fixed;top:0;left:0;right:0;bottom:0;}
+.frame.light-frame{}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideRight{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 #4ADE8033}50%{box-shadow:0 0 0 8px transparent}}
     @keyframes loadbar{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
-::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#30363D;border-radius:2px}
+::-webkit-scrollbar{width:2px}::-webkit-scrollbar-thumb{background:#30363D44;border-radius:1px}::-webkit-scrollbar-track{background:transparent}
 input::placeholder{color:#484F58}
 input:focus,select:focus{outline:none}
 mark{background:#F59E0B22;color:#F59E0B;border-radius:2px;padding:0 1px}
@@ -37,14 +37,10 @@ mark{background:#F59E0B22;color:#F59E0B;border-radius:2px;padding:0 1px}
 </head>
 <body>
 
-  <div class="tab" onclick="show('keyinput')">② License Key</div>
-  <div class="tab" onclick="show('app')">③ App Free</div>
-  <div class="tab" onclick="show('app-pro')">④ App Pro</div>
-  <div class="tab" onclick="show('search')">⌕ Search</div>
-  <div class="tab" onclick="toggleTheme()">☀/🌙 Theme</div>
-</div>
 
-<div class="frame" id="frame" style="height:100vh;overflow-y:auto;margin:0"></div>
+
+
+<div class="frame" id="frame"></div>
 
 <script>
 // ── THEME ──
