@@ -14,7 +14,8 @@
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{margin:0;padding:0;overflow:hidden;background:#0a0e1a;font-family:'Inter','Segoe UI',system-ui,sans-serif;}
-.frame{width:100%;height:100vh;overflow-y:auto;overflow-x:hidden;position:fixed;top:0;left:0;right:0;bottom:0;}
+.frame{width:100%;height:100vh;overflow-y:auto;overflow-x:hidden;position:fixed;top:0;left:0;right:0;bottom:0;display:flex;justify-content:center;}
+.frame-inner{width:100%;max-width:350px;min-height:100%;display:flex;flex-direction:column;position:relative;}
 .frame.light-frame{}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
@@ -3415,7 +3416,7 @@ function renderKeyInput(){
     </div>`:''}
     <!-- MAIN CONTENT -->
     <div style="flex:1;overflow-y:auto;padding:20px 14px">
-    <div style="width:100%;max-width:280px;margin:0 auto">
+    <div style="width:100%">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;display:none">
         <div style="width:28px;height:28px;background:linear-gradient(135deg,#4ADE80,#22C55E);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#fff">S</div>
         <div style="font-size:13px;font-weight:700;color:${C().text}">Swak</div>
@@ -4018,7 +4019,7 @@ function rf(isPro){
   else html=renderApp(isPro||currentScreen==='app-pro');
   // Overlay modals + global theme/lang bar on top
   html += renderUpdateModal() + renderWhatsNew() + renderOfflineWall() + renderDeviceConflict() + renderPostUpdateChangelog();
-  f.innerHTML=html;
+  f.innerHTML=`<div class="frame-inner">${html}</div>`;
 
   f.style.background=C().bg;
   f.style.position='relative'; // for inbox dropdown
