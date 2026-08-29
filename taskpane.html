@@ -3,17 +3,24 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>SWAK Data Tools</title>
+<title>Swak Data Tools</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap');
-/* B Koodak - available via CDN or local */
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&family=Inter:wght@400;600;700;800&display=swap');
+/*
+  Font strategy — Latin always Inter, Persian/Arabic always Vazirmatn.
+  "Swak" and any Latin text renders identically regardless of UI language.
+  We use a unicode-range @font-face to pin Latin glyphs to Inter,
+  then Vazirmatn fills in Persian/Arabic codepoints as the next fallback.
+*/
 @font-face {
-  font-family: 'BKoodak';
-  src: local('B Koodak'), local('BKoodak');
+  font-family: 'SwakUI';
+  src: local('Inter'), url('https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2') format('woff2');
+  font-weight: 400 800;
+  unicode-range: U+0000-024F, U+0250-02AF, U+1E00-1EFF, U+2000-206F, U+20A0-20CF, U+2100-214F, U+FB00-FB06;
   font-display: swap;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{margin:0;padding:0;overflow:hidden;background:#0a0e1a;font-family:'Inter','Segoe UI',system-ui,sans-serif;}
+body{margin:0;padding:0;overflow:hidden;background:#0a0e1a;font-family:'SwakUI','Inter','Vazirmatn','Tahoma',system-ui,sans-serif;}
 .frame{width:100%;height:100vh;overflow-y:auto;overflow-x:hidden;position:fixed;top:0;left:0;right:0;bottom:0;display:flex;justify-content:center;}
 .frame-inner{width:100%;max-width:350px;min-height:100%;display:flex;flex-direction:column;position:relative;}
 .frame.light-frame{}
@@ -312,22 +319,41 @@ function getDaysColor() {
 // In production: messages fetched from Firebase on startup
 // POST_UPDATE_CHANGELOG shown once after each update (from update.json on CDN)
 
+// ── Inbox read-state persistence ──────────────────────────────
+// Read state is stored in localStorage so the badge doesn't re-appear
+// after the add-in is reloaded or the task pane is closed and reopened.
+const _inboxReadKey = 'swak_inbox_read';
+function _loadInboxRead() {
+  try { return JSON.parse(localStorage.getItem(_inboxReadKey) || '[]'); } catch(e) { return []; }
+}
+function _saveInboxRead(ids) {
+  try { localStorage.setItem(_inboxReadKey, JSON.stringify(ids)); } catch(e) {}
+}
+
 const INBOX_MESSAGES = [
   {
-    id: 'msg_001',
-    from: 'Swak Team',
-    subject: "Welcome to v1.6.4 — 7 new improvements!",
-    date: '2026-07-12',
-    read: false,
-    body: `We've shipped a major update:\n\n• Offline protection: app locks when internet is unavailable\n• Multi-step processing with license validation on every run\n• Change License screen: remove/swap license easily\n• Device Conflict modal: clear guidance when license is already active\n• Trust stats & data privacy notice in onboarding\n• All footers filled across every screen\n• Global theme+language switcher on all screens\n\nThank you for using Swak!`,
-  },
-  {
-    id: 'msg_002',
-    from: 'Swak Team',
-    subject: "⚡ Performance tip: How to use Group By efficiently",
-    date: '2026-07-10',
-    read: false,
-    body: "When using Group By on large datasets (>50,000 rows), select only the columns you need before running. This reduces memory usage and speeds up processing by up to 3×.\n\nTip: Use the column picker in the tool panel to select specific columns rather than processing your entire dataset.",
+    id: 'msg_welcome_v1',
+    from: 'Swak Soft Team',
+    subject: "👋 Welcome to Swak Data Tools!",
+    date: '2026-08-29',
+    get read() { return _loadInboxRead().includes(this.id); },
+    set read(_) {
+      const ids = _loadInboxRead();
+      if (!ids.includes(this.id)) { ids.push(this.id); _saveInboxRead(ids); }
+    },
+    body: `Welcome to Swak Data Tools — 215 professional data tools built right into Excel.
+
+🎁 Your account includes a one-time welcome credit of 875,000 AI tokens to explore all 18 AI Insights tools at no extra cost.
+
+Here's how to get started:
+• Select a range in Excel, then pick any tool from the panel
+• Use the Free plan with 23 tools — no license needed
+• Upgrade anytime for access to all 215 tools
+
+If you have any questions, visit swaksoft.com or reply to this message.
+
+Thank you for choosing Swak Data Tools!
+The Swak Team`,
   },
 ];
 
@@ -396,10 +422,10 @@ function showLockedModal({id, icon, title, message, color='#F59E0B',
   overlay.onclick = e => e.stopPropagation();
   overlay.onkeydown = e => e.stopPropagation();
 
-  const bg = isDark?'#161B22':'#fff';
-  const tc = isDark?'#e6edf3':'#1a1a2e';
-  const sc = isDark?'#8b949e':'#666';
-  const bc = isDark?'#30363d':'#e1e4e8';
+  const bg = isDark?'#161B22':LIGHT.bg2;
+  const tc = isDark?'#e6edf3':LIGHT.text;
+  const sc = isDark?'#8b949e':LIGHT.text3;
+  const bc = isDark?'#30363d':LIGHT.border;
 
   const b1 = btn1Text ? `<button onclick="unlockApp();document.getElementById('${id}')?.remove();${btn1Action||''}"
     style="width:100%;padding:10px;background:linear-gradient(135deg,${color},${color}bb);border:none;
@@ -683,7 +709,7 @@ var I18N = {
     updateRequired:'A required update is available. App locked until updated.', updateNow:'Update Now', later:'Later', whatsNew:'What\'s New', letsGo:'Let\'s Go! →', keyValidated:'License validated successfully!', keyPlan:'Plan: Pro Individual', keyExpiry:'Valid until: Dec 31, 2026', keyDevice:'Device: Registered ✓', keyFailed:'Activation failed', keyErrorDesc:'Invalid or expired key. Contact support.', keyErrorInvalid:'Key must start with SWAK-', validating:'Validating...', openApp:'Open App →',
     planIndividual:'Individual', planCorporate:'Corporate', period_monthly:'Monthly', period_quarterly:'3 Months', period_semi:'6 Months', period_annual:'Annual', getProIndividual:'Get Pro Individual', getTeam:'Get Team Plan', getBusiness:'Get Business Plan', getEnterprise:'Get Enterprise Plan',
     customCol:'✏ Enter column name...', customColPh:'e.g. SalesAmount, OrderDate...',
-    toastProActivated:'✓ Pro activated! All 215 tools unlocked.', toastProSim:'✓ Pro activated! (Preview simulation)', toastInvalidKey:'Invalid license key format', toastRequiresPro:'requires Pro', results:'results', searchFound:'Search Results — {n} found', tryLabel:'Try: sort, mean, cluster, pca, fill…', noResultsFor:'No results found for "{q}"', notFound:'not found', proAllTools:'All 215 tools', proOps:'723 operations', proMlAi:'ML & AI suite (55 tools)', proLangs:'9 languages + RTL', proPriority:'Priority support', proValidation:'Internet-validated license', corpAllTools:'✓ All 215 tools', corpOps:'✓ 723 operations', corpMlAi:'✓ ML & AI suite (55 tools)', corpLangs:'✓ 9 languages + RTL', corpPriority:'✓ Priority support', seatLabel:'seat', planIndividual:'Pro Individual', planTeam:'Team', planBusiness:'Business', planEnterprise:'Enterprise', badgeTeam:'TEAM', badgeBusiness:'BUSINESS', badgeEnterprise:'ENTERPRISE', usersLabel:'users', freeToolsLabel:'free tools', freeIncludesBasic:'Data cleaning, filter & basic viz', mlSuiteLabel:'Machine Learning ({n} tools)', statsSuiteLabel:'Statistics suite ({n} tests)', aiInsightsSuiteLabel:'AI Insights ({n} tools)', allToolsLabel:'All {n} tools + priority support', results:'results', toastUpgradeLink:'Upgrade →',
+    toastProActivated:'✓ Pro activated! All 215 tools unlocked.', toastProSim:'✓ Pro activated! (Preview simulation)', toastInvalidKey:'Invalid license key format', toastRequiresPro:'requires Pro', results:'results', searchFound:'Search Results — {n} found', tryLabel:'Try: sort, mean, cluster, pca, fill…', noResultsFor:'No results found for "{q}"', notFound:'not found', proAllTools:'All 215 tools', proOps:'723 operations', proMlAi:'ML & AI suite (55 tools)', proLangs:'9 languages + RTL', proPriority:'Priority support', proValidation:'Internet-validated license', corpAllTools:'✓ All 215 tools', corpOps:'✓ 723 operations', corpMlAi:'✓ ML & AI suite (55 tools)', corpLangs:'✓ 9 languages + RTL', corpPriority:'✓ Priority support', seatLabel:'seat', planIndividual:'Pro Individual', planTeam:'Team', planBusiness:'Business', planEnterprise:'Enterprise', badgeTeam:'TEAM', badgeBusiness:'BUSINESS', badgeEnterprise:'ENTERPRISE', usersLabel:'users', freeToolsLabel:'free tools', freeIncludesBasic:'Data Cleaning, Sort, Filter, Pivot, Transpose', mlSuiteLabel:'ML Suite ({n} models)', statsSuiteLabel:'Statistics Suite ({n} tools)', aiInsightsSuiteLabel:'AI Insights ({n} tools)', allToolsLabel:'All {n} tools unlocked', allToolsUnlocked:'All 215 tools unlocked', nineUILangs:'9 UI languages', standardSupport:'Standard support', welcomeTokens:'One-time 875,000 welcome AI tokens', results:'results', toastUpgradeLink:'Upgrade →',
     tier_clean:'Data Cleaning', tier_filter:'Filter & Sort', tier_transform:'Transform', tier_stats:'Statistics', tier_ml:'Machine Learning', tier_viz:'Visualization', tier_ai:'AI Insights', tier_import:'Data Import', tier_export:'Data Export', tier_profiling:'Data Profiling', tier_productivity:'Productivity', tier_dataeng:'Data Engineering',
     title:'Swak', subtitle:'DATA TOOLS',
     connected:'Connected', disconnected:'Disconnected', searchPh:'Search tools...',
@@ -729,7 +755,7 @@ var I18N = {
     keyError_INVALID_ANON_KEY:'Activation service is temporarily unavailable. Please try again in a few minutes or contact support.',
     keyError_404:'Service temporarily unavailable. Please try again or contact support at swaksoft.com/contact.',
     keyError_500:'Our servers encountered an issue. Please try again in a few minutes.',
-    inbox:'Inbox', inboxMessages:'message', inboxMessagesP:'messages', noMessages:'No messages', backToInbox:'← Back to Inbox',
+    inbox:'Inbox', inboxMessages:'message', inboxMessagesP:'messages', noMessages:'No messages', backToInbox:'Back to Inbox',
     secure:'🔒 Secure', instantActivation:'⚡ Instant activation',
     daysLabel:'Days Remaining', expiresLabel:'Expires', deviceLabel:'Device',
     registeredLabel:'Registered ✓', expiresSoon:'⚠ License expires very soon! Renew →',
@@ -740,9 +766,8 @@ var I18N = {
     keyDesc:'Check your email after purchase at',
     langs:'langs', excelLabel:'Excel', perMo:'/mo', per3mo:'/3mo', per6mo:'/6mo',
     tools:'tools', ops:'ops', free:'Free', back:'Back',
-    internetRequiredTitle:'🌐 Internet Required', internetRequiredDesc:'An active internet connection is required at all times. If your connection drops, Swak will be temporarily unavailable until reconnected.',
-    mandatoryUpdateTitle:'⚡ Mandatory Updates', mandatoryUpdateDesc:'When a required update is released, the add-in will be locked until updated. This ensures all users have the latest security and features.',
-    termsTitle:'📋 Terms of Use', termsDesc:'By activating a license, you agree: (1) One license = one device; (2) No reverse engineering or bypass attempts; (3) No unauthorized redistribution; (4) Internet connection required for operation; (5) Mandatory updates must be installed. Full terms:',
+    internetRequiredTitle:'🌐 Internet Required', internetRequiredDesc:'An active internet connection is required at all times. If your connection drops, Swak Data Tools will be temporarily unavailable until reconnected.',
+    termsTitle:'📋 Terms of Use', termsDesc:'By activating a license, you agree: (1) One license = one device; (2) No reverse engineering or bypass attempts; (3) No unauthorized redistribution; (4) Internet connection required for operation. Full terms:',
   },
   fa: {
     appTitle:'سواک', appSubtitle:'ابزار داده', instant:'فوری',
@@ -756,9 +781,9 @@ var I18N = {
     days:'روز',
     checkingLicense:'در حال بررسی لایسنس...', licenseExpired:'لایسنس منقضی شد. به رایگان تغییر یافت.', noInternet:'عدم اتصال به سرور. اتصال اینترنت را بررسی کنید.', licenseExpiredSoon:'لایسنس در {d} روز دیگر منقضی می‌شود', updateForced:'این آپدیت برای ادامه استفاده الزامی است.',
     updateRequired:'یک آپدیت اجباری موجود است. برنامه تا آپدیت قفل می‌ماند.', updateNow:'آپدیت کن', later:'بعداً', whatsNew:'چه چیزی جدید است', letsGo:'بزن بریم! →', keyValidated:'لایسنس با موفقیت تأیید شد!', keyPlan:'پلن: Pro شخصی', keyExpiry:'اعتبار تا: ۳۱ دسامبر ۲۰۲۶', keyDevice:'دستگاه: ثبت شد ✓', keyFailed:'فعال‌سازی ناموفق بود', keyErrorDesc:'کلید نامعتبر یا منقضی شده. با پشتیبانی تماس بگیرید.', keyErrorInvalid:'کلید باید با SWAK- شروع شود', validating:'در حال بررسی...', openApp:'باز کردن برنامه →',
-    planIndividual:'شخصی', planCorporate:'سازمانی', period_monthly:'ماهانه', period_quarterly:'۳ ماهه', period_semi:'۶ ماهه', period_annual:'سالانه', getProIndividual:'خرید Pro شخصی', getTeam:'خرید پلن تیم', getBusiness:'خرید پلن تجاری', getEnterprise:'خرید پلن سازمانی',
+    planIndividual:'شخصی', planCorporate:'سازمانی', period_monthly:'ماهانه', period_quarterly:'۳ ماهه', period_semi:'۶ ماهه', period_annual:'سالانه', getProIndividual:'خرید پرو شخصی', getTeam:'خرید پلن تیم', getBusiness:'خرید پلن تجاری', getEnterprise:'خرید پلن سازمانی',
     customCol:'✏ نام ستون را وارد کنید...', customColPh:'مثال: مبلغ_فروش، تاریخ_سفارش...',
-    toastProActivated:'✓ Pro فعال شد! همه ۲۱۵ ابزار باز شد.', toastProSim:'✓ Pro فعال شد! (نمایش پیش‌نمایش)', toastInvalidKey:'فرمت کلید لایسنس نادرست است', toastRequiresPro:'نیاز به Pro دارد', results:'نتیجه', searchFound:'نتایج جستجو — {n} مورد یافت شد', tryLabel:'پیشنهاد: مرتب‌سازی، میانگین، خوشه‌بندی، pca، تکمیل…', noResultsFor:'نتیجه‌ای برای "{q}" یافت نشد', notFound:'یافت نشد', proAllTools:'همه ۲۱۵ ابزار', proOps:'۷۲۳ عملیات', proMlAi:'مجموعه ML و AI (۵۵ ابزار)', proLangs:'۹ زبان + RTL', proPriority:'پشتیبانی اولویت‌دار', proValidation:'لایسنس با اعتبارسنجی آنلاین', corpAllTools:'✓ همه ۲۱۵ ابزار', corpOps:'✓ ۷۲۳ عملیات', corpMlAi:'✓ مجموعه ML و AI (۵۵ ابزار)', corpLangs:'✓ ۹ زبان + RTL', corpPriority:'✓ پشتیبانی اولویت‌دار', seatLabel:'کاربر', planIndividual:'پرو شخصی', planTeam:'تیم', planBusiness:'کسب‌وکار', planEnterprise:'سازمانی', badgeTeam:'تیم', badgeBusiness:'کسب‌وکار', badgeEnterprise:'سازمانی', usersLabel:'کاربر', freeToolsLabel:'ابزار رایگان', freeIncludesBasic:'پاکسازی، فیلتر و نمودار پایه', mlSuiteLabel:'یادگیری ماشین ({n} ابزار)', statsSuiteLabel:'مجموعه آمار ({n} آزمون)', aiInsightsSuiteLabel:'هوش مصنوعی ({n} ابزار)', allToolsLabel:'همه {n} ابزار + پشتیبانی ویژه', results:'نتیجه', toastUpgradeLink:'ارتقا →',
+    toastProActivated:'✓ Pro فعال شد! همه ۲۱۵ ابزار باز شد.', toastProSim:'✓ Pro فعال شد! (نمایش پیش‌نمایش)', toastInvalidKey:'فرمت کلید لایسنس نادرست است', toastRequiresPro:'نیاز به Pro دارد', results:'نتیجه', searchFound:'نتایج جستجو — {n} مورد یافت شد', tryLabel:'پیشنهاد: مرتب‌سازی، میانگین، خوشه‌بندی، pca، تکمیل…', noResultsFor:'نتیجه‌ای برای "{q}" یافت نشد', notFound:'یافت نشد', proAllTools:'همه ۲۱۵ ابزار', proOps:'۷۲۳ عملیات', proMlAi:'مجموعه ML و AI (۵۵ ابزار)', proLangs:'۹ زبان + RTL', proPriority:'پشتیبانی اولویت‌دار', proValidation:'لایسنس با اعتبارسنجی آنلاین', corpAllTools:'✓ همه ۲۱۵ ابزار', corpOps:'✓ ۷۲۳ عملیات', corpMlAi:'✓ مجموعه ML و AI (۵۵ ابزار)', corpLangs:'✓ ۹ زبان + RTL', corpPriority:'✓ پشتیبانی اولویت‌دار', seatLabel:'کاربر', planIndividual:'پرو شخصی', planTeam:'تیم', planBusiness:'کسب‌وکار', planEnterprise:'سازمانی', badgeTeam:'تیم', badgeBusiness:'کسب‌وکار', badgeEnterprise:'سازمانی', usersLabel:'کاربر', freeToolsLabel:'ابزار رایگان', freeIncludesBasic:'پاکسازی، مرتب‌سازی، فیلتر، پیوت، ترانهاده', mlSuiteLabel:'مجموعه ML ({n} مدل)', statsSuiteLabel:'مجموعه آمار ({n} ابزار)', aiInsightsSuiteLabel:'هوش مصنوعی ({n} ابزار)', allToolsLabel:'همه {n} ابزار باز شده', allToolsUnlocked:'همه ۲۱۵ ابزار باز شده', nineUILangs:'۹ زبان رابط کاربری', standardSupport:'پشتیبانی استاندارد', welcomeTokens:'اعتبار خوش‌آمدگویی ۸۷۵٬۰۰۰ توکن AI', results:'نتیجه', toastUpgradeLink:'ارتقا →',
     tier_clean:'پاکسازی داده', tier_filter:'فیلتر و مرتب‌سازی', tier_transform:'تبدیل', tier_stats:'آمار', tier_ml:'یادگیری ماشین', tier_viz:'نمایش', tier_ai:'هوش مصنوعی', tier_import:'ورود داده', tier_export:'خروج داده', tier_profiling:'پروفایل داده', tier_productivity:'بهره‌وری', tier_dataeng:'مهندسی داده',
     title:'چاقوی سوئیسی', subtitle:'ابزار داده',
     connected:'متصل است', disconnected:'اتصال برقرار نیست', searchPh:'جستجو در ابزارها...',
@@ -803,7 +828,7 @@ var I18N = {
     keyError_TIMEOUT:'زمان درخواست تمام شد. سرور پاسخ نداد. لطفاً دوباره امتحان کنید.',
     keyError_INVALID_ANON_KEY:'احراز هویت سرور ناموفق بود. با پشتیبانی تماس بگیرید.',
     keyError_500:'خطای داخلی سرور. لطفاً بعداً دوباره امتحان کنید.',
-    inbox:'صندوق پیام', inboxMessages:'پیام', inboxMessagesP:'پیام', noMessages:'پیامی وجود ندارد', backToInbox:'→ بازگشت به صندوق',
+    inbox:'صندوق پیام', inboxMessages:'پیام', inboxMessagesP:'پیام', noMessages:'پیامی وجود ندارد', backToInbox:'بازگشت به صندوق',
     secure:'🔒 امن', instantActivation:'⚡ فعال‌سازی فوری',
     daysLabel:'روزهای باقی‌مانده', expiresLabel:'انقضا', deviceLabel:'دستگاه',
     registeredLabel:'ثبت شد ✓', expiresSoon:'⚠ لایسنس به‌زودی منقضی می‌شود! تمدید →',
@@ -814,9 +839,8 @@ var I18N = {
     keyDesc:'بعد از خرید لایسنس از وب‌سایت، ایمیل خود را بررسی کنید.',
     langs:'زبان', excelLabel:'اکسل', perMo:'/ماه', per3mo:'/۳ ماه', per6mo:'/۶ ماه',
     tools:'ابزار', ops:'عملیات', free:'رایگان', back:'بازگشت',
-    internetRequiredTitle:'🌐 نیاز به اینترنت', internetRequiredDesc:'اتصال فعال به اینترنت در تمام اوقات الزامی است. در صورت قطع ارتباط، Swak تا زمان اتصال مجدد موقتاً در دسترس نخواهد بود.',
-    mandatoryUpdateTitle:'⚡ آپدیت‌های اجباری', mandatoryUpdateDesc:'هنگامی که یک آپدیت اجباری منتشر می‌شود، افزونه تا آپدیت قفل می‌ماند. این اطمینان می‌دهد که همه کاربران آخرین امنیت و ویژگی‌ها را دارند.',
-    termsTitle:'📋 شرایط استفاده', termsDesc:'با فعال‌سازی لایسنس موافقت می‌کنید: (۱) یک لایسنس = یک دستگاه؛ (۲) بدون مهندسی معکوس؛ (۳) بدون توزیع غیرمجاز؛ (۴) اتصال اینترنت برای عملکرد لازم است؛ (۵) آپدیت‌های اجباری باید نصب شوند. متن کامل:',
+    internetRequiredTitle:'🌐 نیاز به اینترنت', internetRequiredDesc:'اتصال فعال به اینترنت در تمام اوقات الزامی است. در صورت قطع ارتباط، Swak Data Tools تا زمان اتصال مجدد موقتاً در دسترس نخواهد بود.',
+    termsTitle:'📋 شرایط استفاده', termsDesc:'با فعال‌سازی لایسنس موافقت می‌کنید: (۱) یک لایسنس = یک دستگاه؛ (۲) بدون مهندسی معکوس؛ (۳) بدون توزیع غیرمجاز؛ (۴) اتصال اینترنت برای عملکرد لازم است. متن کامل:',
   },
   ar: {
     appTitle:'سواك', appSubtitle:'أدوات البيانات', instant:'فوري',
@@ -830,9 +854,9 @@ var I18N = {
     days:'أيام',
     checkingLicense:'جاري التحقق من الترخيص...', licenseExpired:'انتهى الترخيص. تم التبديل إلى مجاني.', noInternet:'لا يمكن الوصول للخادم. تحقق من اتصالك بالإنترنت.', licenseExpiredSoon:'ينتهي الترخيص خلال {d} يوماً', updateForced:'هذا التحديث مطلوب للمتابعة.',
     updateRequired:'تحديث مطلوب متاح. التطبيق مقفل حتى التحديث.', updateNow:'تحديث الآن', later:'لاحقاً', whatsNew:'ما الجديد', letsGo:'هيا! →', keyValidated:'تم التحقق من الترخيص!', keyPlan:'الخطة: Pro فردي', keyExpiry:'صالح حتى: ٣١ ديسمبر ٢٠٢٦', keyDevice:'الجهاز: مسجل ✓', keyFailed:'فشل التفعيل', keyErrorDesc:'مفتاح غير صالح أو منتهي الصلاحية.', keyErrorInvalid:'يجب أن يبدأ المفتاح بـ SWAK-', validating:'جاري التحقق...', openApp:'فتح التطبيق →',
-    planIndividual:'فردي', planCorporate:'للشركات', period_monthly:'شهري', period_quarterly:'٣ أشهر', period_semi:'٦ أشهر', period_annual:'سنوي', getProIndividual:'احصل على Pro الفردي', getTeam:'احصل على خطة الفريق', getBusiness:'احصل على خطة الأعمال', getEnterprise:'احصل على خطة المؤسسة',
+    planIndividual:'فردي', planCorporate:'للشركات', period_monthly:'شهري', period_quarterly:'٣ أشهر', period_semi:'٦ أشهر', period_annual:'سنوي', getProIndividual:'احصل على برو الفردي', getTeam:'احصل على خطة الفريق', getBusiness:'احصل على خطة الأعمال', getEnterprise:'احصل على خطة المؤسسة',
     customCol:'✏ أدخل اسم العمود...', customColPh:'مثال: SalesAmount, OrderDate...',
-    toastProActivated:'✓ تم تفعيل Pro! تم فتح جميع ٢١٥ أداة.', toastProSim:'✓ تم تفعيل Pro! (معاينة)', toastInvalidKey:'تنسيق مفتاح الترخيص غير صحيح', toastRequiresPro:'يتطلب Pro', results:'نتائج', searchFound:'نتائج البحث — {n} تم العثور عليها', tryLabel:'جرب: ترتيب، متوسط، تجميع، pca، ملء…', noResultsFor:'لا توجد نتائج لـ "{q}"', notFound:'غير موجود', proAllTools:'جميع ٢١٥ أداة', proOps:'٧٢٣ عملية', proMlAi:'مجموعة ML وAI (٥٥ أداة)', proLangs:'٩ لغات + RTL', proPriority:'دعم ذو أولوية', proValidation:'ترخيص بالتحقق عبر الإنترنت', corpAllTools:'✓ جميع ٢١٥ أداة', corpOps:'✓ ٧٢٣ عملية', corpMlAi:'✓ مجموعة ML وAI (٥٥ أداة)', corpLangs:'✓ ٩ لغات + RTL', corpPriority:'✓ دعم ذو أولوية', seatLabel:'مستخدم', planIndividual:'برو الفردي', planTeam:'فريق', planBusiness:'أعمال', planEnterprise:'مؤسسة', badgeTeam:'فريق', badgeBusiness:'أعمال', badgeEnterprise:'مؤسسة', usersLabel:'مستخدم', freeToolsLabel:'أداة مجانية', freeIncludesBasic:'تنظيف، تصفية ومخططات أساسية', mlSuiteLabel:'تعلم الآلة ({n} أداة)', statsSuiteLabel:'مجموعة الإحصاء ({n} اختبار)', aiInsightsSuiteLabel:'رؤى الذكاء الاصطناعي ({n} أداة)', allToolsLabel:'جميع {n} أداة + دعم متميز', results:'نتائج', toastUpgradeLink:'ترقية →',
+    toastProActivated:'✓ تم تفعيل Pro! تم فتح جميع ٢١٥ أداة.', toastProSim:'✓ تم تفعيل Pro! (معاينة)', toastInvalidKey:'تنسيق مفتاح الترخيص غير صحيح', toastRequiresPro:'يتطلب Pro', results:'نتائج', searchFound:'نتائج البحث — {n} تم العثور عليها', tryLabel:'جرب: ترتيب، متوسط، تجميع، pca، ملء…', noResultsFor:'لا توجد نتائج لـ "{q}"', notFound:'غير موجود', proAllTools:'جميع ٢١٥ أداة', proOps:'٧٢٣ عملية', proMlAi:'مجموعة ML وAI (٥٥ أداة)', proLangs:'٩ لغات + RTL', proPriority:'دعم ذو أولوية', proValidation:'ترخيص بالتحقق عبر الإنترنت', corpAllTools:'✓ جميع ٢١٥ أداة', corpOps:'✓ ٧٢٣ عملية', corpMlAi:'✓ مجموعة ML وAI (٥٥ أداة)', corpLangs:'✓ ٩ لغات + RTL', corpPriority:'✓ دعم ذو أولوية', seatLabel:'مستخدم', planIndividual:'برو الفردي', planTeam:'فريق', planBusiness:'أعمال', planEnterprise:'مؤسسة', badgeTeam:'فريق', badgeBusiness:'أعمال', badgeEnterprise:'مؤسسة', usersLabel:'مستخدم', freeToolsLabel:'أداة مجانية', freeIncludesBasic:'تنظيف، فرز، تصفية، محوري، تحويل', mlSuiteLabel:'مجموعة ML ({n} نموذج)', statsSuiteLabel:'مجموعة الإحصاء ({n} أداة)', aiInsightsSuiteLabel:'رؤى الذكاء الاصطناعي ({n} أداة)', allToolsLabel:'جميع {n} أداة مفتوحة', allToolsUnlocked:'جميع ٢١٥ أداة مفتوحة', nineUILangs:'٩ لغات للواجهة', standardSupport:'دعم قياسي', welcomeTokens:'رصيد ترحيبي لمرة واحدة ٨٧٥٬٠٠٠ رمز AI', results:'نتائج', toastUpgradeLink:'ترقية →',
     tier_clean:'تنظيف البيانات', tier_filter:'تصفية وترتيب', tier_transform:'تحويل', tier_stats:'إحصاء', tier_ml:'تعلم الآلة', tier_viz:'تصور', tier_ai:'ذكاء اصطناعي', tier_import:'استيراد البيانات', tier_export:'تصدير البيانات', tier_profiling:'تحليل ملف البيانات', tier_productivity:'الإنتاجية', tier_dataeng:'هندسة البيانات',
     title:'السكين السويسرية', subtitle:'أدوات البيانات',
     connected:'متصل', disconnected:'غير متصل', searchPh:'البحث في الأدوات...',
@@ -877,7 +901,7 @@ var I18N = {
     keyError_TIMEOUT:'انتهت مهلة الطلب. لم يستجب الخادم. حاول مجدداً.',
     keyError_INVALID_ANON_KEY:'فشل مصادقة الخادم. اتصل بالدعم.',
     keyError_500:'خطأ داخلي في الخادم. حاول مجدداً لاحقاً.',
-    inbox:'صندوق الرسائل', inboxMessages:'رسالة', inboxMessagesP:'رسائل', noMessages:'لا توجد رسائل', backToInbox:'→ العودة للصندوق',
+    inbox:'صندوق الرسائل', inboxMessages:'رسالة', inboxMessagesP:'رسائل', noMessages:'لا توجد رسائل', backToInbox:'العودة للصندوق',
     secure:'🔒 آمن', instantActivation:'⚡ تفعيل فوري',
     daysLabel:'الأيام المتبقية', expiresLabel:'الانتهاء', deviceLabel:'الجهاز',
     registeredLabel:'مسجل ✓', expiresSoon:'⚠ الترخيص ينتهي قريباً! تجديد →',
@@ -886,9 +910,8 @@ var I18N = {
     support:'الدعم', share:'مشاركة',
     langs:'لغات', excelLabel:'إكسل', perMo:'/شهر', per3mo:'/٣ أشهر', per6mo:'/٦ أشهر',
     tools:'أدوات', ops:'عمليات', free:'مجاني', back:'رجوع',
-    internetRequiredTitle:'🌐 الإنترنت مطلوب', internetRequiredDesc:'يجب توفر اتصال إنترنت نشط دائمًا. في حال انقطاع الاتصال، سيكون Swak غير متاح مؤقتًا.',
-    mandatoryUpdateTitle:'⚡ تحديثات إلزامية', mandatoryUpdateDesc:'عند إصدار تحديث إلزامي، سيتم تأمين الإضافة حتى اكتمال التحديث.',
-    termsTitle:'📋 شروط الاستخدام', termsDesc:'بالتفعيل توافق على: (١) ترخيص واحد = جهاز واحد؛ (٢) لا هندسة عكسية؛ (٣) الإنترنت مطلوب؛ (٤) يجب تثبيت التحديثات الإلزامية. الشروط الكاملة:',
+    internetRequiredTitle:'🌐 الإنترنت مطلوب', internetRequiredDesc:'يجب توفر اتصال إنترنت نشط دائمًا. في حال انقطاع الاتصال، سيكون Swak Data Tools غير متاح مؤقتًا.',
+    termsTitle:'📋 شروط الاستخدام', termsDesc:'بالتفعيل توافق على: (١) ترخيص واحد = جهاز واحد؛ (٢) لا هندسة عكسية؛ (٣) الإنترنت مطلوب للتشغيل. الشروط الكاملة:',
   },
   de: {
     appTitle:'Schweizer Taschenmesser', appSubtitle:'DATEN-TOOLS', instant:'Sofort',
@@ -904,7 +927,7 @@ var I18N = {
     updateRequired:'Ein erforderliches Update ist verfügbar. App gesperrt bis zum Update.', updateNow:'Jetzt aktualisieren', later:'Später', whatsNew:'Was ist neu', letsGo:'Los geht\'s! →', keyValidated:'Lizenz erfolgreich validiert!', keyPlan:'Plan: Pro Einzelperson', keyExpiry:'Gültig bis: 31. Dez. 2026', keyDevice:'Gerät: Registriert ✓', keyFailed:'Aktivierung fehlgeschlagen', keyErrorDesc:'Ungültiger oder abgelaufener Schlüssel.', keyErrorInvalid:'Schlüssel muss mit SWAK- beginnen', validating:'Wird überprüft...', openApp:'App öffnen →',
     planIndividual:'Einzelperson', planCorporate:'Unternehmen', period_monthly:'Monatlich', period_quarterly:'3 Monate', period_semi:'6 Monate', period_annual:'Jährlich', getProIndividual:'Pro Einzelperson holen', getTeam:'Team-Plan holen', getBusiness:'Business-Plan holen', getEnterprise:'Enterprise-Plan holen',
     customCol:'✏ Spaltenname eingeben...', customColPh:'z.B. Umsatz, Bestelldatum...',
-    toastProActivated:'✓ Pro aktiviert! Alle 215 Tools freigeschaltet.', toastProSim:'✓ Pro aktiviert! (Vorschau-Simulation)', toastInvalidKey:'Ungültiges Lizenzschlüssel-Format', toastRequiresPro:'erfordert Pro', results:'Ergebnisse', searchFound:'Suchergebnisse — {n} gefunden', tryLabel:'Versuche: sortieren, Mittelwert, Cluster, pca, füllen…', noResultsFor:'Keine Ergebnisse für „{q}"', notFound:'nicht gefunden', proAllTools:'Alle 215 Tools', proOps:'723 Operationen', proMlAi:'ML & KI-Suite (55 Tools)', proLangs:'9 Sprachen + RTL', proPriority:'Prioritätssupport', proValidation:'Internet-validierte Lizenz', corpAllTools:'✓ Alle 215 Tools', corpOps:'✓ 723 Operationen', corpMlAi:'✓ ML & KI-Suite (55 Tools)', corpLangs:'✓ 9 Sprachen + RTL', corpPriority:'✓ Prioritätssupport', seatLabel:'Nutzer', planIndividual:'Pro Einzelperson', planTeam:'Team', planBusiness:'Business', planEnterprise:'Enterprise', badgeTeam:'TEAM', badgeBusiness:'BUSINESS', badgeEnterprise:'ENTERPRISE', usersLabel:'Nutzer', freeToolsLabel:'kostenlose Tools', freeIncludesBasic:'Bereinigung, Filter & Grundvisualisierung', mlSuiteLabel:'Machine Learning ({n} Tools)', statsSuiteLabel:'Statistik-Suite ({n} Tests)', aiInsightsSuiteLabel:'KI-Einblicke ({n} Tools)', allToolsLabel:'Alle {n} Tools + Prioritätssupport', results:'Ergebnisse', toastUpgradeLink:'Upgrade →',
+    toastProActivated:'✓ Pro aktiviert! Alle 215 Tools freigeschaltet.', toastProSim:'✓ Pro aktiviert! (Vorschau-Simulation)', toastInvalidKey:'Ungültiges Lizenzschlüssel-Format', toastRequiresPro:'erfordert Pro', results:'Ergebnisse', searchFound:'Suchergebnisse — {n} gefunden', tryLabel:'Versuche: sortieren, Mittelwert, Cluster, pca, füllen…', noResultsFor:'Keine Ergebnisse für „{q}"', notFound:'nicht gefunden', proAllTools:'Alle 215 Tools', proOps:'723 Operationen', proMlAi:'ML & KI-Suite (55 Tools)', proLangs:'9 Sprachen + RTL', proPriority:'Prioritätssupport', proValidation:'Internet-validierte Lizenz', corpAllTools:'✓ Alle 215 Tools', corpOps:'✓ 723 Operationen', corpMlAi:'✓ ML & KI-Suite (55 Tools)', corpLangs:'✓ 9 Sprachen + RTL', corpPriority:'✓ Prioritätssupport', seatLabel:'Nutzer', planIndividual:'Pro Einzelperson', planTeam:'Team', planBusiness:'Business', planEnterprise:'Enterprise', badgeTeam:'TEAM', badgeBusiness:'BUSINESS', badgeEnterprise:'ENTERPRISE', usersLabel:'Nutzer', freeToolsLabel:'kostenlose Tools', freeIncludesBasic:'Bereinigung, Sortieren, Filter, Pivot, Transponieren', mlSuiteLabel:'ML-Suite ({n} Modelle)', statsSuiteLabel:'Statistik-Suite ({n} Tools)', aiInsightsSuiteLabel:'KI-Einblicke ({n} Tools)', allToolsLabel:'Alle {n} Tools freigeschaltet', allToolsUnlocked:'Alle 215 Tools freigeschaltet', nineUILangs:'9 UI-Sprachen', standardSupport:'Standardsupport', welcomeTokens:'Einmalig 875.000 Willkommens-AI-Tokens', results:'Ergebnisse', toastUpgradeLink:'Upgrade →',
     tier_clean:'Datenbereinigung', tier_filter:'Filter & Sortierung', tier_transform:'Transformation', tier_stats:'Statistik', tier_ml:'Maschinelles Lernen', tier_viz:'Visualisierung', tier_ai:'KI-Analysen', tier_import:'Datenimport', tier_export:'Datenexport', tier_profiling:'Datenprofiling', tier_productivity:'Produktivität', tier_dataeng:'Datentechnik',
     title:'Schweizer Taschenmesser', subtitle:'DATEN-TOOLS',
     connected:'Verbunden', disconnected:'Getrennt', searchPh:'Tools suchen...',
@@ -927,7 +950,7 @@ var I18N = {
     tools:'Tools', ops:'Ops',
     configParams:'Parameter konfigurieren',
     getMonthly:'Pro Monatlich', get3mo:'3-Monats-Abo',
-    inbox:'Posteingang', inboxMessages:'Nachricht', inboxMessagesP:'Nachrichten', noMessages:'Keine Nachrichten', backToInbox:'← Zurück zum Posteingang',
+    inbox:'Posteingang', inboxMessages:'Nachricht', inboxMessagesP:'Nachrichten', noMessages:'Keine Nachrichten', backToInbox:'Zurück zum Posteingang',
     secure:'🔒 Sicher', instantActivation:'⚡ Sofortaktivierung',
     daysLabel:'Verbleibende Tage', expiresLabel:'Läuft ab', deviceLabel:'Gerät',
     registeredLabel:'Registriert ✓', expiresSoon:'⚠ Lizenz läuft bald ab! Verlängern →',
@@ -938,9 +961,8 @@ var I18N = {
     keyDesc:'Nach dem Kauf finden Sie den Schlüssel in Ihrer E-Mail bei',
     langs:'Sprachen', excelLabel:'Excel', perMo:'/Mo', per3mo:'/3Mo', per6mo:'/6Mo',
     tools:'Tools', ops:'Ops', free:'Kostenlos', back:'Zurück',
-    internetRequiredTitle:'🌐 Internetverbindung erforderlich', internetRequiredDesc:'Eine aktive Internetverbindung ist jederzeit erforderlich. Bei Verbindungsabbruch ist Swak vorübergehend nicht verfügbar.',
-    mandatoryUpdateTitle:'⚡ Pflicht-Updates', mandatoryUpdateDesc:'Bei einem Pflicht-Update wird das Add-in gesperrt, bis das Update installiert wurde.',
-    termsTitle:'📋 Nutzungsbedingungen', termsDesc:'Mit der Aktivierung stimmen Sie zu: (1) Eine Lizenz = ein Gerät; (2) Kein Reverse Engineering; (3) Internet erforderlich; (4) Pflicht-Updates müssen installiert werden. Vollständige Bedingungen:',
+    internetRequiredTitle:'🌐 Internetverbindung erforderlich', internetRequiredDesc:'Eine aktive Internetverbindung ist jederzeit erforderlich. Bei Verbindungsabbruch ist Swak Data Tools vorübergehend nicht verfügbar.',
+    termsTitle:'📋 Nutzungsbedingungen', termsDesc:'Mit der Aktivierung stimmen Sie zu: (1) Eine Lizenz = ein Gerät; (2) Kein Reverse Engineering; (3) Kein unberechtigter Weitervertrieb; (4) Internet erforderlich. Vollständige Bedingungen:',
     keyError_INVALID_KEY:'Ungültiger Schlüssel.',
     keyError_LICENSE_EXPIRED:'Ihre Lizenz ist abgelaufen. Bitte verlängern Sie Ihren Plan.',
     keyError_DEVICE_CONFLICT:'Diese Lizenz ist bereits auf einem anderen Gerät aktiv.',
@@ -967,7 +989,7 @@ var I18N = {
     updateRequired:'Une mise à jour requise est disponible. App bloquée jusqu\'à la mise à jour.', updateNow:'Mettre à jour', later:'Plus tard', whatsNew:'Nouveautés', letsGo:'C\'est parti ! →', keyValidated:'Licence validée avec succès !', keyPlan:'Plan : Pro Individuel', keyExpiry:'Valide jusqu\'au : 31 déc. 2026', keyDevice:'Appareil : Enregistré ✓', keyFailed:'Échec de l\'activation', keyErrorDesc:'Clé invalide ou expirée.', keyErrorInvalid:'La clé doit commencer par SWAK-', validating:'Vérification...', openApp:'Ouvrir l\'app →',
     planIndividual:'Individuel', planCorporate:'Entreprise', period_monthly:'Mensuel', period_quarterly:'3 Mois', period_semi:'6 Mois', period_annual:'Annuel', getProIndividual:'Obtenir Pro Individuel', getTeam:'Obtenir Plan Équipe', getBusiness:'Obtenir Plan Business', getEnterprise:'Obtenir Plan Entreprise',
     customCol:'✏ Saisir le nom de colonne...', customColPh:'ex. MontantVentes, DateCommande...',
-    toastProActivated:'✓ Pro activé ! 215 outils déverrouillés.', toastProSim:'✓ Pro activé ! (Simulation aperçu)', toastInvalidKey:'Format de clé de licence invalide', toastRequiresPro:'nécessite Pro', results:'résultats', searchFound:'Résultats — {n} trouvés', tryLabel:'Essayez: trier, moyenne, cluster, pca, remplir…', noResultsFor:'Aucun résultat pour « {q} »', notFound:'introuvable', proAllTools:'Tous les 215 outils', proOps:'723 opérations', proMlAi:'Suite ML & IA (55 outils)', proLangs:'9 langues + RTL', proPriority:'Support prioritaire', proValidation:'Licence validée en ligne', corpAllTools:'✓ Tous les 215 outils', corpOps:'✓ 723 opérations', corpMlAi:'✓ Suite ML & IA (55 outils)', corpLangs:'✓ 9 langues + RTL', corpPriority:'✓ Support prioritaire', seatLabel:'utilisateur', planIndividual:'Pro Individuel', planTeam:'Équipe', planBusiness:'Affaires', planEnterprise:'Entreprise', badgeTeam:'ÉQUIPE', badgeBusiness:'AFFAIRES', badgeEnterprise:'ENTREPRISE', usersLabel:'utilisateurs', freeToolsLabel:'outils gratuits', freeIncludesBasic:'Nettoyage, filtres & visualisation de base', mlSuiteLabel:'Machine Learning ({n} outils)', statsSuiteLabel:'Suite statistiques ({n} tests)', aiInsightsSuiteLabel:'Insights IA ({n} outils)', allToolsLabel:'Tous les {n} outils + support prioritaire', results:'résultats', toastUpgradeLink:'Mettre à niveau →',
+    toastProActivated:'✓ Pro activé ! 215 outils déverrouillés.', toastProSim:'✓ Pro activé ! (Simulation aperçu)', toastInvalidKey:'Format de clé de licence invalide', toastRequiresPro:'nécessite Pro', results:'résultats', searchFound:'Résultats — {n} trouvés', tryLabel:'Essayez: trier, moyenne, cluster, pca, remplir…', noResultsFor:'Aucun résultat pour « {q} »', notFound:'introuvable', proAllTools:'Tous les 215 outils', proOps:'723 opérations', proMlAi:'Suite ML & IA (55 outils)', proLangs:'9 langues + RTL', proPriority:'Support prioritaire', proValidation:'Licence validée en ligne', corpAllTools:'✓ Tous les 215 outils', corpOps:'✓ 723 opérations', corpMlAi:'✓ Suite ML & IA (55 outils)', corpLangs:'✓ 9 langues + RTL', corpPriority:'✓ Support prioritaire', seatLabel:'utilisateur', planIndividual:'Pro Individuel', planTeam:'Équipe', planBusiness:'Affaires', planEnterprise:'Entreprise', badgeTeam:'ÉQUIPE', badgeBusiness:'AFFAIRES', badgeEnterprise:'ENTREPRISE', usersLabel:'utilisateurs', freeToolsLabel:'outils gratuits', freeIncludesBasic:'Nettoyage, tri, filtres, pivot, transposer', mlSuiteLabel:'Suite ML ({n} modèles)', statsSuiteLabel:'Suite statistiques ({n} outils)', aiInsightsSuiteLabel:'Insights IA ({n} outils)', allToolsLabel:'Tous les {n} outils déverrouillés', allToolsUnlocked:'Tous les 215 outils déverrouillés', nineUILangs:'9 langues UI', standardSupport:'Support standard', welcomeTokens:'875 000 tokens AI de bienvenue (unique)', results:'résultats', toastUpgradeLink:'Mettre à niveau →',
     tier_clean:'Nettoyage des données', tier_filter:'Filtrer & Trier', tier_transform:'Transformer', tier_stats:'Statistiques', tier_ml:'Apprentissage automatique', tier_viz:'Visualisation', tier_ai:'IA & Insights', tier_import:'Import de données', tier_export:'Export de données', tier_profiling:'Profilage des données', tier_productivity:'Productivité', tier_dataeng:'Ingénierie des données',
     title:'Couteau Suisse', subtitle:'OUTILS DE DONNÉES',
     connected:'Connecté', disconnected:'Déconnecté', searchPh:'Rechercher des outils...',
@@ -990,7 +1012,7 @@ var I18N = {
     tools:'outils', ops:'opérations',
     configParams:'Configurer les paramètres',
     getMonthly:'Abonnement mensuel', get3mo:'Abonnement 3 mois',
-    inbox:'Boîte de réception', inboxMessages:'message', inboxMessagesP:'messages', noMessages:'Aucun message', backToInbox:'← Retour à la boîte',
+    inbox:'Boîte de réception', inboxMessages:'message', inboxMessagesP:'messages', noMessages:'Aucun message', backToInbox:'Retour à la boîte',
     secure:'🔒 Sécurisé', instantActivation:'⚡ Activation instantanée',
     daysLabel:'Jours restants', expiresLabel:'Expire le', deviceLabel:'Appareil',
     registeredLabel:'Enregistré ✓', expiresSoon:'⚠ Licence expire bientôt ! Renouveler →',
@@ -1001,9 +1023,8 @@ var I18N = {
     keyDesc:'Trouvez la clé dans votre e-mail après l\'achat sur',
     langs:'langues', excelLabel:'Excel', perMo:'/mois', per3mo:'/3 mois', per6mo:'/6 mois',
     tools:'outils', ops:'ops', free:'Gratuit', back:'Retour',
-    internetRequiredTitle:'🌐 Connexion Internet requise', internetRequiredDesc:'Une connexion Internet active est requise en permanence. En cas de coupure, Swak sera temporairement indisponible.',
-    mandatoryUpdateTitle:'⚡ Mises à jour obligatoires', mandatoryUpdateDesc:'Lors d\'une mise à jour obligatoire, le module sera bloqué jusqu\'à la mise à jour.',
-    termsTitle:'📋 Conditions d\'utilisation', termsDesc:'En activant, vous acceptez : (1) Une licence = un appareil ; (2) Pas d\'ingénierie inverse ; (3) Internet requis ; (4) Les mises à jour obligatoires doivent être installées. Conditions complètes :',
+    internetRequiredTitle:'🌐 Connexion Internet requise', internetRequiredDesc:'Une connexion Internet active est requise en permanence. En cas de coupure, Swak Data Tools sera temporairement indisponible.',
+    termsTitle:'📋 Conditions d\'utilisation', termsDesc:'En activant, vous acceptez : (1) Une licence = un appareil ; (2) Pas d\'ingénierie inverse ; (3) Pas de redistribution non autorisée ; (4) Internet requis. Conditions complètes :',
     keyError_INVALID_KEY:'Clé invalide.',
     keyError_LICENSE_EXPIRED:'Votre licence a expiré. Veuillez renouveler votre abonnement.',
     keyError_DEVICE_CONFLICT:'Cette licence est déjà active sur un autre appareil.',
@@ -1030,7 +1051,7 @@ var I18N = {
     updateRequired:'Actualización requerida disponible. App bloqueada hasta actualizar.', updateNow:'Actualizar ahora', later:'Más tarde', whatsNew:'Novedades', letsGo:'¡Vamos! →', keyValidated:'¡Licencia validada con éxito!', keyPlan:'Plan: Pro Individual', keyExpiry:'Válido hasta: 31 dic. 2026', keyDevice:'Dispositivo: Registrado ✓', keyFailed:'Activación fallida', keyErrorDesc:'Clave inválida o expirada.', keyErrorInvalid:'La clave debe comenzar con SWAK-', validating:'Verificando...', openApp:'Abrir app →',
     planIndividual:'Individual', planCorporate:'Corporativo', period_monthly:'Mensual', period_quarterly:'3 Meses', period_semi:'6 Meses', period_annual:'Anual', getProIndividual:'Obtener Pro Individual', getTeam:'Obtener Plan Equipo', getBusiness:'Obtener Plan Negocio', getEnterprise:'Obtener Plan Empresa',
     customCol:'✏ Ingresar nombre de columna...', customColPh:'ej. MontoVentas, FechaPedido...',
-    toastProActivated:'✓ ¡Pro activado! 215 herramientas desbloqueadas.', toastProSim:'✓ ¡Pro activado! (Simulación vista previa)', toastInvalidKey:'Formato de clave de licencia inválido', toastRequiresPro:'requiere Pro', results:'resultados', searchFound:'Resultados — {n} encontrados', tryLabel:'Prueba: ordenar, media, cluster, pca, rellenar…', noResultsFor:'Sin resultados para "{q}"', notFound:'no encontrado', proAllTools:'Todas las 215 herramientas', proOps:'723 operaciones', proMlAi:'Suite ML e IA (55 herramientas)', proLangs:'9 idiomas + RTL', proPriority:'Soporte prioritario', proValidation:'Licencia validada en línea', corpAllTools:'✓ Todas las 215 herramientas', corpOps:'✓ 723 operaciones', corpMlAi:'✓ Suite ML e IA (55 herramientas)', corpLangs:'✓ 9 idiomas + RTL', corpPriority:'✓ Soporte prioritario', seatLabel:'usuario', planIndividual:'Pro Individual', planTeam:'Equipo', planBusiness:'Negocio', planEnterprise:'Empresa', badgeTeam:'EQUIPO', badgeBusiness:'NEGOCIO', badgeEnterprise:'EMPRESA', usersLabel:'usuarios', freeToolsLabel:'herramientas gratuitas', freeIncludesBasic:'Limpieza, filtros y viz básica', mlSuiteLabel:'Machine Learning ({n} herramientas)', statsSuiteLabel:'Suite estadísticas ({n} pruebas)', aiInsightsSuiteLabel:'Insights IA ({n} herramientas)', allToolsLabel:'Todas las {n} herramientas + soporte prioritario', results:'resultados', toastUpgradeLink:'Actualizar →',
+    toastProActivated:'✓ ¡Pro activado! 215 herramientas desbloqueadas.', toastProSim:'✓ ¡Pro activado! (Simulación vista previa)', toastInvalidKey:'Formato de clave de licencia inválido', toastRequiresPro:'requiere Pro', results:'resultados', searchFound:'Resultados — {n} encontrados', tryLabel:'Prueba: ordenar, media, cluster, pca, rellenar…', noResultsFor:'Sin resultados para "{q}"', notFound:'no encontrado', proAllTools:'Todas las 215 herramientas', proOps:'723 operaciones', proMlAi:'Suite ML e IA (55 herramientas)', proLangs:'9 idiomas + RTL', proPriority:'Soporte prioritario', proValidation:'Licencia validada en línea', corpAllTools:'✓ Todas las 215 herramientas', corpOps:'✓ 723 operaciones', corpMlAi:'✓ Suite ML e IA (55 herramientas)', corpLangs:'✓ 9 idiomas + RTL', corpPriority:'✓ Soporte prioritario', seatLabel:'usuario', planIndividual:'Pro Individual', planTeam:'Equipo', planBusiness:'Negocio', planEnterprise:'Empresa', badgeTeam:'EQUIPO', badgeBusiness:'NEGOCIO', badgeEnterprise:'EMPRESA', usersLabel:'usuarios', freeToolsLabel:'herramientas gratuitas', freeIncludesBasic:'Limpieza, ordenar, filtros, pivot, transponer', mlSuiteLabel:'Suite ML ({n} modelos)', statsSuiteLabel:'Suite estadísticas ({n} herramientas)', aiInsightsSuiteLabel:'Insights IA ({n} herramientas)', allToolsLabel:'Todas las {n} herramientas desbloqueadas', allToolsUnlocked:'Todas las 215 herramientas desbloqueadas', nineUILangs:'9 idiomas UI', standardSupport:'Soporte estándar', welcomeTokens:'875.000 tokens AI de bienvenida (único)', results:'resultados', toastUpgradeLink:'Actualizar →',
     tier_clean:'Limpieza de datos', tier_filter:'Filtrar & Ordenar', tier_transform:'Transformar', tier_stats:'Estadísticas', tier_ml:'Aprendizaje automático', tier_viz:'Visualización', tier_ai:'IA & Análisis', tier_import:'Importar datos', tier_export:'Exportar datos', tier_profiling:'Perfil de datos', tier_productivity:'Productividad', tier_dataeng:'Ingeniería de datos',
     title:'Navaja Suiza', subtitle:'HERRAMIENTAS DE DATOS',
     connected:'Conectado', disconnected:'Desconectado', searchPh:'Buscar herramientas...',
@@ -1053,7 +1074,7 @@ var I18N = {
     tools:'herramientas', ops:'operaciones',
     configParams:'Configurar parámetros',
     getMonthly:'Pro Mensual', get3mo:'Suscripción 3 meses',
-    inbox:'Bandeja de entrada', inboxMessages:'mensaje', inboxMessagesP:'mensajes', noMessages:'Sin mensajes', backToInbox:'← Volver a la bandeja',
+    inbox:'Bandeja de entrada', inboxMessages:'mensaje', inboxMessagesP:'mensajes', noMessages:'Sin mensajes', backToInbox:'Volver a la bandeja',
     secure:'🔒 Seguro', instantActivation:'⚡ Activación instantánea',
     daysLabel:'Días restantes', expiresLabel:'Vence el', deviceLabel:'Dispositivo',
     registeredLabel:'Registrado ✓', expiresSoon:'⚠ ¡La licencia vence pronto! Renovar →',
@@ -1064,9 +1085,8 @@ var I18N = {
     keyDesc:'Encuentra la clave en tu correo después de la compra en',
     langs:'idiomas', excelLabel:'Excel', perMo:'/mes', per3mo:'/3 meses', per6mo:'/6 meses',
     tools:'herramientas', ops:'ops', free:'Gratis', back:'Volver',
-    internetRequiredTitle:'🌐 Conexión a Internet requerida', internetRequiredDesc:'Se requiere una conexión a Internet activa en todo momento. Si se interrumpe, Swak no estará disponible temporalmente.',
-    mandatoryUpdateTitle:'⚡ Actualizaciones obligatorias', mandatoryUpdateDesc:'Cuando se publique una actualización obligatoria, el add-in se bloqueará hasta que se instale.',
-    termsTitle:'📋 Términos de uso', termsDesc:'Al activar, acepta: (1) Una licencia = un dispositivo; (2) Sin ingeniería inversa; (3) Internet requerido; (4) Las actualizaciones obligatorias deben instalarse. Términos completos:',
+    internetRequiredTitle:'🌐 Conexión a Internet requerida', internetRequiredDesc:'Se requiere una conexión a Internet activa en todo momento. Si se interrumpe, Swak Data Tools no estará disponible temporalmente.',
+    termsTitle:'📋 Términos de uso', termsDesc:'Al activar, acepta: (1) Una licencia = un dispositivo; (2) Sin ingeniería inversa; (3) Sin redistribución no autorizada; (4) Internet requerido. Términos completos:',
     keyError_INVALID_KEY:'Clave inválida.',
     keyError_LICENSE_EXPIRED:'Su licencia ha expirado. Por favor renueve su suscripción.',
     keyError_DEVICE_CONFLICT:'Esta licencia ya está activa en otro dispositivo.',
@@ -1093,7 +1113,7 @@ var I18N = {
     updateRequired:'有必须安装的更新。应用将锁定直到更新。', updateNow:'立即更新', later:'稍后', whatsNew:'新功能', letsGo:'开始！→', keyValidated:'许可证验证成功！', keyPlan:'方案：Pro 个人版', keyExpiry:'有效期至：2026年12月31日', keyDevice:'设备：已注册 ✓', keyFailed:'激活失败', keyErrorDesc:'无效或已过期的密钥。', keyErrorInvalid:'密钥必须以 SWAK- 开头', validating:'验证中...', openApp:'打开应用 →',
     planIndividual:'个人版', planCorporate:'企业版', period_monthly:'月付', period_quarterly:'3个月', period_semi:'6个月', period_annual:'年付', getProIndividual:'购买Pro个人版', getTeam:'购买团队版', getBusiness:'购买商业版', getEnterprise:'购买企业版',
     customCol:'✏ 输入列名...', customColPh:'例如: 销售额, 订单日期...',
-    toastProActivated:'✓ Pro 已激活！215个工具已解锁。', toastProSim:'✓ Pro 已激活！（预览模拟）', toastInvalidKey:'许可证密钥格式无效', toastRequiresPro:'需要 Pro', results:'个结果', searchFound:'搜索结果 — 找到 {n} 个', tryLabel:'试试: 排序、均值、聚类、pca、填充…', noResultsFor:'未找到"{q}"的结果', notFound:'未找到', proAllTools:'全部215个工具', proOps:'723个操作', proMlAi:'ML和AI套件（55个工具）', proLangs:'9种语言 + RTL', proPriority:'优先支持', proValidation:'在线验证许可证', corpAllTools:'✓ 全部215个工具', corpOps:'✓ 723个操作', corpMlAi:'✓ ML和AI套件（55个工具）', corpLangs:'✓ 9种语言 + RTL', corpPriority:'✓ 优先支持', seatLabel:'用户', planIndividual:'专业个人版', planTeam:'团队版', planBusiness:'商业版', planEnterprise:'企业版', badgeTeam:'团队', badgeBusiness:'商业', badgeEnterprise:'企业', usersLabel:'用户', freeToolsLabel:'个免费工具', freeIncludesBasic:'数据清洗、筛选和基础可视化', mlSuiteLabel:'机器学习（{n}个工具）', statsSuiteLabel:'统计套件（{n}个测试）', aiInsightsSuiteLabel:'AI洞察（{n}个工具）', allToolsLabel:'全部{n}个工具 + 优先支持', results:'个结果', toastUpgradeLink:'升级 →',
+    toastProActivated:'✓ Pro 已激活！215个工具已解锁。', toastProSim:'✓ Pro 已激活！（预览模拟）', toastInvalidKey:'许可证密钥格式无效', toastRequiresPro:'需要 Pro', results:'个结果', searchFound:'搜索结果 — 找到 {n} 个', tryLabel:'试试: 排序、均值、聚类、pca、填充…', noResultsFor:'未找到"{q}"的结果', notFound:'未找到', proAllTools:'全部215个工具', proOps:'723个操作', proMlAi:'ML和AI套件（55个工具）', proLangs:'9种语言 + RTL', proPriority:'优先支持', proValidation:'在线验证许可证', corpAllTools:'✓ 全部215个工具', corpOps:'✓ 723个操作', corpMlAi:'✓ ML和AI套件（55个工具）', corpLangs:'✓ 9种语言 + RTL', corpPriority:'✓ 优先支持', seatLabel:'用户', planIndividual:'专业个人版', planTeam:'团队版', planBusiness:'商业版', planEnterprise:'企业版', badgeTeam:'团队', badgeBusiness:'商业', badgeEnterprise:'企业', usersLabel:'用户', freeToolsLabel:'个免费工具', freeIncludesBasic:'清洗、排序、筛选、透视、转置', mlSuiteLabel:'ML套件（{n}个模型）', statsSuiteLabel:'统计套件（{n}个工具）', aiInsightsSuiteLabel:'AI洞察（{n}个工具）', allToolsLabel:'全部{n}个工具已解锁', allToolsUnlocked:'全部215个工具已解锁', nineUILangs:'9种UI语言', standardSupport:'标准支持', welcomeTokens:'一次性87.5万AI欢迎代币', results:'个结果', toastUpgradeLink:'升级 →',
     tier_clean:'数据清洗', tier_filter:'筛选与排序', tier_transform:'数据转换', tier_stats:'统计分析', tier_ml:'机器学习', tier_viz:'可视化', tier_ai:'AI分析', tier_import:'数据导入', tier_export:'数据导出', tier_profiling:'数据剖析', tier_productivity:'效率工具', tier_dataeng:'数据工程',
     title:'瑞士军刀', subtitle:'数据工具',
     connected:'已连接', disconnected:'未连接', searchPh:'搜索工具...',
@@ -1116,7 +1136,7 @@ var I18N = {
     tools:'工具', ops:'操作',
     configParams:'配置参数',
     getMonthly:'月度订阅', get3mo:'季度订阅',
-    inbox:'收件箱', inboxMessages:'条消息', inboxMessagesP:'条消息', noMessages:'没有消息', backToInbox:'← 返回收件箱',
+    inbox:'收件箱', inboxMessages:'条消息', inboxMessagesP:'条消息', noMessages:'没有消息', backToInbox:'返回收件箱',
     secure:'🔒 安全', instantActivation:'⚡ 即时激活',
     daysLabel:'剩余天数', expiresLabel:'到期日', deviceLabel:'设备',
     registeredLabel:'已注册 ✓', expiresSoon:'⚠ 许可证即将过期！续订 →',
@@ -1127,9 +1147,8 @@ var I18N = {
     keyDesc:'购买后请在以下网站查收邮件中的密钥',
     langs:'种语言', excelLabel:'Excel', perMo:'/月', per3mo:'/3月', per6mo:'/6月',
     tools:'工具', ops:'操作', free:'免费', back:'返回',
-    internetRequiredTitle:'🌐 需要网络连接', internetRequiredDesc:'始终需要活动的网络连接。如果连接中断，Swak将暂时不可用。',
-    mandatoryUpdateTitle:'⚡ 强制更新', mandatoryUpdateDesc:'发布强制更新时，插件将被锁定直到完成更新。',
-    termsTitle:'📋 使用条款', termsDesc:'激活即表示您同意：(1) 一个许可证 = 一台设备；(2) 禁止反向工程；(3) 需要网络连接；(4) 必须安装强制更新。完整条款：',
+    internetRequiredTitle:'🌐 需要网络连接', internetRequiredDesc:'始终需要活动的网络连接。如果连接中断，Swak Data Tools将暂时不可用。',
+    termsTitle:'📋 使用条款', termsDesc:'激活即表示您同意：(1) 一个许可证 = 一台设备；(2) 禁止反向工程；(3) 禁止未授权分发；(4) 需要网络连接。完整条款：',
     keyError_INVALID_KEY:'无效密钥。',
     keyError_LICENSE_EXPIRED:'您的许可证已过期，请续订您的套餐。',
     keyError_DEVICE_CONFLICT:'此许可证已在另一台设备上激活。',
@@ -1156,7 +1175,7 @@ var I18N = {
     updateRequired:'Доступно обязательное обновление. Приложение заблокировано до обновления.', updateNow:'Обновить сейчас', later:'Позже', whatsNew:'Что нового', letsGo:'Поехали! →', keyValidated:'Лицензия успешно подтверждена!', keyPlan:'Plan: Pro Индивидуальный', keyExpiry:'Действителен до: 31 дек. 2026', keyDevice:'Устройство: Зарегистрировано ✓', keyFailed:'Активация не удалась', keyErrorDesc:'Недействительный или истёкший ключ.', keyErrorInvalid:'Ключ должен начинаться с SWAK-', validating:'Проверка...', openApp:'Открыть приложение →',
     planIndividual:'Индивидуальный', planCorporate:'Корпоративный', period_monthly:'Ежемесячно', period_quarterly:'3 Месяца', period_semi:'6 Месяцев', period_annual:'Ежегодно', getProIndividual:'Купить Pro Индивидуальный', getTeam:'Купить Командный план', getBusiness:'Купить Бизнес-план', getEnterprise:'Купить Корпоративный план',
     customCol:'✏ Введите название столбца...', customColPh:'напр. СуммаПродаж, ДатаЗаказа...',
-    toastProActivated:'✓ Pro активирован! 215 инструментов разблокированы.', toastProSim:'✓ Pro активирован! (Симуляция превью)', toastInvalidKey:'Неверный формат лицензионного ключа', toastRequiresPro:'требует Pro', results:'результатов', searchFound:'Результаты — найдено {n}', tryLabel:'Попробуйте: сортировка, среднее, кластер, pca, заполнить…', noResultsFor:'По запросу «{q}» ничего не найдено', notFound:'не найдено', proAllTools:'Все 215 инструментов', proOps:'723 операции', proMlAi:'Пакет ML и ИИ (55 инструментов)', proLangs:'9 языков + RTL', proPriority:'Приоритетная поддержка', proValidation:'Лицензия с онлайн-проверкой', corpAllTools:'✓ Все 215 инструментов', corpOps:'✓ 723 операции', corpMlAi:'✓ Пакет ML и ИИ (55 инструментов)', corpLangs:'✓ 9 языков + RTL', corpPriority:'✓ Приоритетная поддержка', seatLabel:'пользователь', planIndividual:'Про Индивидуальный', planTeam:'Команда', planBusiness:'Бизнес', planEnterprise:'Корпоративный', badgeTeam:'КОМАНДА', badgeBusiness:'БИЗНЕС', badgeEnterprise:'КОРПОРАТ', usersLabel:'пользователей', freeToolsLabel:'бесплатных инструментов', freeIncludesBasic:'Очистка, фильтры и базовая визуализация', mlSuiteLabel:'Машинное обучение ({n} инструментов)', statsSuiteLabel:'Статистика ({n} тестов)', aiInsightsSuiteLabel:'AI-инсайты ({n} инструментов)', allToolsLabel:'Все {n} инструментов + приоритетная поддержка', results:'результатов', toastUpgradeLink:'Обновить →',
+    toastProActivated:'✓ Pro активирован! 215 инструментов разблокированы.', toastProSim:'✓ Pro активирован! (Симуляция превью)', toastInvalidKey:'Неверный формат лицензионного ключа', toastRequiresPro:'требует Pro', results:'результатов', searchFound:'Результаты — найдено {n}', tryLabel:'Попробуйте: сортировка, среднее, кластер, pca, заполнить…', noResultsFor:'По запросу «{q}» ничего не найдено', notFound:'не найдено', proAllTools:'Все 215 инструментов', proOps:'723 операции', proMlAi:'Пакет ML и ИИ (55 инструментов)', proLangs:'9 языков + RTL', proPriority:'Приоритетная поддержка', proValidation:'Лицензия с онлайн-проверкой', corpAllTools:'✓ Все 215 инструментов', corpOps:'✓ 723 операции', corpMlAi:'✓ Пакет ML и ИИ (55 инструментов)', corpLangs:'✓ 9 языков + RTL', corpPriority:'✓ Приоритетная поддержка', seatLabel:'пользователь', planIndividual:'Про Индивидуальный', planTeam:'Команда', planBusiness:'Бизнес', planEnterprise:'Корпоративный', badgeTeam:'КОМАНДА', badgeBusiness:'БИЗНЕС', badgeEnterprise:'КОРПОРАТ', usersLabel:'пользователей', freeToolsLabel:'бесплатных инструментов', freeIncludesBasic:'Очистка, сортировка, фильтры, сводная, транспонирование', mlSuiteLabel:'Пакет ML ({n} моделей)', statsSuiteLabel:'Статистика ({n} инструментов)', aiInsightsSuiteLabel:'AI-инсайты ({n} инструментов)', allToolsLabel:'Все {n} инструментов разблокированы', allToolsUnlocked:'Все 215 инструментов разблокированы', nineUILangs:'9 языков интерфейса', standardSupport:'Стандартная поддержка', welcomeTokens:'Единовременно 875 000 приветственных AI-токенов', results:'результатов', toastUpgradeLink:'Обновить →',
     tier_clean:'Очистка данных', tier_filter:'Фильтр и сортировка', tier_transform:'Трансформация', tier_stats:'Статистика', tier_ml:'Машинное обучение', tier_viz:'Визуализация', tier_ai:'ИИ-Аналитика', tier_import:'Импорт данных', tier_export:'Экспорт данных', tier_profiling:'Профилирование данных', tier_productivity:'Продуктивность', tier_dataeng:'Инженерия данных',
     title:'Швейцарский Нож', subtitle:'ИНСТРУМЕНТЫ ДАННЫХ',
     connected:'Подключено', disconnected:'Отключено', searchPh:'Поиск инструментов...',
@@ -1179,7 +1198,7 @@ var I18N = {
     tools:'инструментов', ops:'операций',
     configParams:'Настроить параметры',
     getMonthly:'Ежемесячная подписка', get3mo:'3-месячная подписка',
-    inbox:'Входящие', inboxMessages:'сообщение', inboxMessagesP:'сообщений', noMessages:'Нет сообщений', backToInbox:'← Назад во входящие',
+    inbox:'Входящие', inboxMessages:'сообщение', inboxMessagesP:'сообщений', noMessages:'Нет сообщений', backToInbox:'Назад во входящие',
     secure:'🔒 Безопасно', instantActivation:'⚡ Мгновенная активация',
     daysLabel:'Осталось дней', expiresLabel:'Истекает', deviceLabel:'Устройство',
     registeredLabel:'Зарегистрировано ✓', expiresSoon:'⚠ Лицензия скоро истекает! Продлить →',
@@ -1190,9 +1209,8 @@ var I18N = {
     keyDesc:'После покупки найдите ключ в письме на',
     langs:'языков', excelLabel:'Excel', perMo:'/мес', per3mo:'/3 мес', per6mo:'/6 мес',
     tools:'инструментов', ops:'операций', free:'Бесплатно', back:'Назад',
-    internetRequiredTitle:'🌐 Требуется интернет', internetRequiredDesc:'Постоянное активное подключение к интернету обязательно. При обрыве связи Swak будет временно недоступен.',
-    mandatoryUpdateTitle:'⚡ Обязательные обновления', mandatoryUpdateDesc:'При выходе обязательного обновления приложение будет заблокировано до его установки.',
-    termsTitle:'📋 Условия использования', termsDesc:'Активируя, вы соглашаетесь: (1) Одна лицензия = одно устройство; (2) Запрещён реверс-инжиниринг; (3) Требуется интернет; (4) Обязательные обновления должны устанавливаться. Полные условия:',
+    internetRequiredTitle:'🌐 Требуется интернет', internetRequiredDesc:'Постоянное активное подключение к интернету обязательно. При обрыве связи Swak Data Tools будет временно недоступен.',
+    termsTitle:'📋 Условия использования', termsDesc:'Активируя, вы соглашаетесь: (1) Одна лицензия = одно устройство; (2) Запрещён реверс-инжиниринг; (3) Запрещено несанкционированное распространение; (4) Требуется интернет. Полные условия:',
     keyError_INVALID_KEY:'Неверный ключ.',
     keyError_LICENSE_EXPIRED:'Ваша лицензия истекла. Пожалуйста, продлите подписку.',
     keyError_DEVICE_CONFLICT:'Эта лицензия уже активирована на другом устройстве.',
@@ -1219,7 +1237,7 @@ var I18N = {
     updateRequired:'एक आवश्यक अपडेट उपलब्ध है। अपडेट तक ऐप लॉक रहेगा।', updateNow:'अभी अपडेट करें', later:'बाद में', whatsNew:'नया क्या है', letsGo:'चलो शुरू करें! →', keyValidated:'लाइसेंस सफलतापूर्वक सत्यापित!', keyPlan:'प्लान: Pro व्यक्तिगत', keyExpiry:'वैध: 31 दिसंबर 2026 तक', keyDevice:'डिवाइस: पंजीकृत ✓', keyFailed:'सक्रियण विफल', keyErrorDesc:'अमान्य या समाप्त कुंजी।', keyErrorInvalid:'कुंजी SWAK- से शुरू होनी चाहिए', validating:'सत्यापन हो रहा है...', openApp:'ऐप खोलें →',
     planIndividual:'व्यक्तिगत', planCorporate:'कॉर्पोरेट', period_monthly:'मासिक', period_quarterly:'3 महीने', period_semi:'6 महीने', period_annual:'वार्षिक', getProIndividual:'Pro व्यक्तिगत खरीदें', getTeam:'टीम प्लान खरीदें', getBusiness:'बिजनेस प्लान खरीदें', getEnterprise:'एंटरप्राइज़ प्लान खरीदें',
     customCol:'✏ कॉलम नाम दर्ज करें...', customColPh:'जैसे: SalesAmount, OrderDate...',
-    toastProActivated:'✓ Pro सक्रिय! 215 टूल्स अनलॉक हो गए।', toastProSim:'✓ Pro सक्रिय! (पूर्वावलोकन सिमुलेशन)', toastInvalidKey:'अमान्य लाइसेंस कुंजी प्रारूप', toastRequiresPro:'Pro की आवश्यकता है', results:'परिणाम', searchFound:'खोज परिणाम — {n} मिले', tryLabel:'आज़माएं: sort, mean, cluster, pca, fill…', noResultsFor:'"{q}" के लिए कोई परिणाम नहीं मिला', notFound:'नहीं मिला', proAllTools:'सभी 215 टूल्स', proOps:'723 ऑपरेशन', proMlAi:'ML और AI सूट (55 टूल्स)', proLangs:'9 भाषाएं + RTL', proPriority:'प्राथमिकता समर्थन', proValidation:'इंटरनेट-सत्यापित लाइसेंस', corpAllTools:'✓ सभी 215 टूल्स', corpOps:'✓ 723 ऑपरेशन', corpMlAi:'✓ ML और AI सूट (55 टूल्स)', corpLangs:'✓ 9 भाषाएं + RTL', corpPriority:'✓ प्राथमिकता समर्थन', seatLabel:'उपयोगकर्ता', planIndividual:'प्रो व्यक्तिगत', planTeam:'टीम', planBusiness:'व्यवसाय', planEnterprise:'एंटरप्राइज़', badgeTeam:'टीम', badgeBusiness:'बिजनेस', badgeEnterprise:'एंटरप्राइज़', usersLabel:'उपयोगकर्ता', freeToolsLabel:'मुफ्त टूल्स', freeIncludesBasic:'सफाई, फ़िल्टर और बुनियादी विज़ुअलाइज़', mlSuiteLabel:'मशीन लर्निंग ({n} टूल्स)', statsSuiteLabel:'सांख्यिकी सूट ({n} परीक्षण)', aiInsightsSuiteLabel:'AI अंतर्दृष्टि ({n} टूल्स)', allToolsLabel:'सभी {n} टूल्स + प्राथमिकता समर्थन', results:'परिणाम', toastUpgradeLink:'अपग्रेड →',
+    toastProActivated:'✓ Pro सक्रिय! 215 टूल्स अनलॉक हो गए।', toastProSim:'✓ Pro सक्रिय! (पूर्वावलोकन सिमुलेशन)', toastInvalidKey:'अमान्य लाइसेंस कुंजी प्रारूप', toastRequiresPro:'Pro की आवश्यकता है', results:'परिणाम', searchFound:'खोज परिणाम — {n} मिले', tryLabel:'आज़माएं: sort, mean, cluster, pca, fill…', noResultsFor:'"{q}" के लिए कोई परिणाम नहीं मिला', notFound:'नहीं मिला', proAllTools:'सभी 215 टूल्स', proOps:'723 ऑपरेशन', proMlAi:'ML और AI सूट (55 टूल्स)', proLangs:'9 भाषाएं + RTL', proPriority:'प्राथमिकता समर्थन', proValidation:'इंटरनेट-सत्यापित लाइसेंस', corpAllTools:'✓ सभी 215 टूल्स', corpOps:'✓ 723 ऑपरेशन', corpMlAi:'✓ ML और AI सूट (55 टूल्स)', corpLangs:'✓ 9 भाषाएं + RTL', corpPriority:'✓ प्राथमिकता समर्थन', seatLabel:'उपयोगकर्ता', planIndividual:'प्रो व्यक्तिगत', planTeam:'टीम', planBusiness:'व्यवसाय', planEnterprise:'एंटरप्राइज़', badgeTeam:'टीम', badgeBusiness:'बिजनेस', badgeEnterprise:'एंटरप्राइज़', usersLabel:'उपयोगकर्ता', freeToolsLabel:'मुफ्त टूल्स', freeIncludesBasic:'सफाई, सॉर्ट, फ़िल्टर, पिवट, ट्रांसपोज़', mlSuiteLabel:'ML सूट ({n} मॉडल)', statsSuiteLabel:'सांख्यिकी सूट ({n} टूल्स)', aiInsightsSuiteLabel:'AI अंतर्दृष्टि ({n} टूल्स)', allToolsLabel:'सभी {n} टूल्स अनलॉक', allToolsUnlocked:'सभी 215 टूल्स अनलॉक', nineUILangs:'9 UI भाषाएं', standardSupport:'मानक समर्थन', welcomeTokens:'एकमुश्त 875,000 स्वागत AI टोकन', results:'परिणाम', toastUpgradeLink:'अपग्रेड →',
     tier_clean:'डेटा सफाई', tier_filter:'फ़िल्टर & सॉर्ट', tier_transform:'रूपांतरण', tier_stats:'सांख्यिकी', tier_ml:'मशीन लर्निंग', tier_viz:'विज़ुअलाइज़ेशन', tier_ai:'AI अंतर्दृष्टि', tier_import:'डेटा आयात', tier_export:'डेटा निर्यात', tier_profiling:'डेटा प्रोफाइलिंग', tier_productivity:'उत्पादकता', tier_dataeng:'डेटा इंजीनियरिंग',
     title:'स्विस आर्मी नाइफ', subtitle:'डेटा टूल्स',
     connected:'जुड़ा हुआ', disconnected:'कनेक्ट नहीं', searchPh:'टूल्स खोजें...',
@@ -1242,7 +1260,7 @@ var I18N = {
     tools:'टूल्स', ops:'ऑपरेशन',
     configParams:'पैरामीटर कॉन्फ़िगर करें',
     getMonthly:'मासिक सदस्यता', get3mo:'3 माह सदस्यता',
-    inbox:'इनबॉक्स', inboxMessages:'संदेश', inboxMessagesP:'संदेश', noMessages:'कोई संदेश नहीं', backToInbox:'← इनबॉक्स पर वापस',
+    inbox:'इनबॉक्स', inboxMessages:'संदेश', inboxMessagesP:'संदेश', noMessages:'कोई संदेश नहीं', backToInbox:'इनबॉक्स पर वापस',
     secure:'🔒 सुरक्षित', instantActivation:'⚡ तत्काल सक्रियण',
     daysLabel:'शेष दिन', expiresLabel:'समाप्ति', deviceLabel:'डिवाइस',
     registeredLabel:'पंजीकृत ✓', expiresSoon:'⚠ लाइसेंस जल्द समाप्त होगा! नवीनीकरण →',
@@ -1253,9 +1271,8 @@ var I18N = {
     keyDesc:'खरीद के बाद अपने ईमेल में कुंजी देखें',
     langs:'भाषाएँ', excelLabel:'Excel', perMo:'/माह', per3mo:'/3 माह', per6mo:'/6 माह',
     tools:'उपकरण', ops:'ऑप्स', free:'मुफ़्त', back:'वापस',
-    internetRequiredTitle:'🌐 इंटरनेट आवश्यक है', internetRequiredDesc:'हर समय सक्रिय इंटरनेट कनेक्शन आवश्यक है। कनेक्शन टूटने पर Swak अस्थायी रूप से अनुपलब्ध रहेगा।',
-    mandatoryUpdateTitle:'⚡ अनिवार्य अपडेट', mandatoryUpdateDesc:'अनिवार्य अपडेट जारी होने पर, अपडेट इंस्टॉल होने तक ऐप लॉक रहेगा।',
-    termsTitle:'📋 उपयोग की शर्तें', termsDesc:'सक्रिय करने पर आप सहमत हैं: (1) एक लाइसेंस = एक डिवाइस; (2) रिवर्स इंजीनियरिंग नहीं; (3) इंटरनेट आवश्यक; (4) अनिवार्य अपडेट इंस्टॉल करने होंगे। पूर्ण शर्तें:',
+    internetRequiredTitle:'🌐 इंटरनेट आवश्यक है', internetRequiredDesc:'हर समय सक्रिय इंटरनेट कनेक्शन आवश्यक है। कनेक्शन टूटने पर Swak Data Tools अस्थायी रूप से अनुपलब्ध रहेगा।',
+    termsTitle:'📋 उपयोग की शर्तें', termsDesc:'सक्रिय करने पर आप सहमत हैं: (1) एक लाइसेंस = एक डिवाइस; (2) रिवर्स इंजीनियरिंग नहीं; (3) अनधिकृत वितरण नहीं; (4) इंटरनेट आवश्यक। पूर्ण शर्तें:',
     keyError_INVALID_KEY:'अमान्य कुंजी।',
     keyError_LICENSE_EXPIRED:'आपका लाइसेंस समाप्त हो गया है। कृपया अपनी सदस्यता नवीनीकृत करें।',
     keyError_DEVICE_CONFLICT:'यह लाइसेंस पहले से किसी अन्य डिवाइस पर सक्रिय है।',
@@ -1281,11 +1298,11 @@ const DARK = {
   successBg:'#0F2A1A',upgradeBg:'#1C1700',errorBg:'#2A0F0F',
 };
 const LIGHT = {
-  bg:'#FFFFFF',bg2:'#F6F8FA',bg3:'#EAEEF2',bg4:'#DDE3EA',
-  border:'#D0D7DE',border2:'#AFBAC7',
-  text:'#1F2328',text2:'#24292F',text3:'#57606A',text4:'#8C959F',
+  bg:'#F0EDE8',bg2:'#E8E4DE',bg3:'#DAD5CE',bg4:'#C8C2BA',
+  border:'#B8B2AA',border2:'#A09890',
+  text:'#1C1917',text2:'#292524',text3:'#57534E',text4:'#78716C',
   accent:'#1A7F37',accentDim:'#1A7F3766',
-  successBg:'#DAFBE1',upgradeBg:'#FFF8C5',errorBg:'#FFEBE9',
+  successBg:'#DCFCE7',upgradeBg:'#FEF9C3',errorBg:'#FEE2E2',
 };
 function C(){return isDark?DARK:LIGHT;}
 
@@ -3153,7 +3170,7 @@ function renderDeviceConflict(){
       <!-- Actions -->
       <div style="display:flex;flex-direction:column;gap:6px">
         <button onclick="window.open('https://swaksoft.com/buy','_blank')"
-          style="width:100%;padding:10px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:7px;color:#0D1117;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit">
+          style="width:100%;padding:10px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:7px;color:#fff;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit">
           🛒 ${t('conflictBuyNew')||'Buy New License'} — $11.99/mo
         </button>
         <button onclick="show('app');showDeviceConflict=false;rf(false)"
@@ -3217,22 +3234,19 @@ function renderOnboarding(){
   const ip = indP[period];
   const cp = corpP[period];
 
-  // Features
-  const freeFeats = [
-    {ok:true,  text:toLocalDigits('23')+' '+t('freeToolsLabel')},
-    {ok:true,  text:t('freeIncludesBasic')},
-    {ok:false, text:t('mlSuiteLabel').replace('{n}',toLocalDigits('37'))},
-    {ok:false, text:t('statsSuiteLabel').replace('{n}',toLocalDigits('25'))},
-    {ok:false, text:t('aiInsightsSuiteLabel').replace('{n}',toLocalDigits('18'))},
-    {ok:false, text:t('allToolsLabel').replace('{n}',toLocalDigits('215'))},
+  // Unified feature list — same items for all plans, ok=false dims the row
+  const allFeats = (okMap) => [
+    {ok:true,     text:okMap[0] ? (t('allToolsUnlocked')||'All 215 tools unlocked') : (toLocalDigits('23')+' '+(t('freeToolsLabel')||'free tools unlocked'))},
+    {ok:true,     text:t('freeIncludesBasic')||'Data Cleaning, Sort, Filter, Pivot, Transpose'},
+    {ok:true,     text:t('nineUILangs')||'9 UI languages'},
+    {ok:true,     text:t('standardSupport')||'Standard support'},
+    {ok:okMap[0], text:t('mlSuiteLabel').replace('{n}',toLocalDigits('37'))},
+    {ok:okMap[0], text:t('statsSuiteLabel').replace('{n}',toLocalDigits('25'))},
+    {ok:okMap[0], text:t('aiInsightsSuiteLabel').replace('{n}',toLocalDigits('18'))},
+    {ok:okMap[0], text:t('welcomeTokens')||'One-time 875,000 welcome AI tokens'},
   ];
-  const proFeats = [
-    {ok:true, text:t('proAllTools')},
-    {ok:true, text:t('proOps')},
-    {ok:true, text:t('proMlAi')},
-    {ok:true, text:t('proLangs')},
-    {ok:true, text:t('proPriority')},
-  ];
+  const freeFeats = allFeats([false]);
+  const proFeats  = allFeats([true]);
 
   return`<div style="background:${C().bg};min-height:100%;display:flex;flex-direction:column;direction:${isRtl?'rtl':'ltr'}">
   <!-- HEADER with theme+lang -->
@@ -3287,7 +3301,7 @@ function renderOnboarding(){
           <div style="font-size:22px;font-weight:800;color:${C().text3}">${lang==='fa'||lang==='ar'?toLocalDigits('0')+'$':'$0'}<span style="font-size:11px;color:${C().text4}"> ${t('forever')||'forever'}</span></div>
         </div>
         <div style="display:flex;flex-direction:column;gap:2px">
-          ${freeFeats.map(f=>`<div style="font-size:10px;color:${f.ok?C().text2:C().text4}">${f.ok?'✓':'✗'} ${f.text}</div>`).join('')}
+          ${freeFeats.map(f=>`<div style="font-size:9.5px;color:${f.ok?C().text2:C().text4};line-height:1.3">${f.ok?'✓':'✗'} ${f.text}</div>`).join('')}
         </div>
       </div>
       <button onclick="handlePlan('free')" style="width:100%;margin-top:10px;padding:8px;background:${C().bg3};border:1px solid ${C().border2};border-radius:6px;color:${C().text3};font-size:11px;cursor:pointer;font-family:inherit">
@@ -3297,45 +3311,41 @@ function renderOnboarding(){
 
     <!-- PRO INDIVIDUAL -->
     <div style="padding:12px;border-radius:10px;background:${isDark?'linear-gradient(135deg,#0F2A1A,#161B22)':'linear-gradient(135deg,#DAFBE1,#F6F8FA)'};border:2px solid #4ADE8066;margin-bottom:8px;position:relative">
-      <div style="position:absolute;top:-10px;${isRtl?'left':'right'}:12px;background:linear-gradient(135deg,#4ADE80,#22C55E);border-radius:10px;padding:2px 10px;font-size:9px;font-weight:800;color:#0D1117">${t('popular')||'POPULAR'}</div>
+      <div style="position:absolute;top:-10px;${isRtl?'left':'right'}:12px;background:linear-gradient(135deg,#4ADE80,#22C55E);border-radius:10px;padding:2px 10px;font-size:9px;font-weight:800;color:#fff">${t('popular')||'POPULAR'}</div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div>
           <div style="font-size:12px;font-weight:700;color:${C().text}">${t('planIndividual')}</div>
-          <div style="font-size:24px;font-weight:800;color:#4ADE80">${fmtCurrency(ip.p)}<span style="font-size:10px;color:${C().text4}">${period==='monthly'?t('perMo')||'/mo':period==='quarterly'?t('per3mo')||'/3mo':t('per6mo')||'/6mo'}</span></div>
-          ${ip.savePer?`<div style="font-size:12px;font-weight:700;color:#F59E0B;margin-top:3px">${fmtCurrency(ip.savePer)}<span style="font-size:10px;color:${C().text4}">/mo</span></div>`:""}
+          <div style="font-size:20px;font-weight:900;color:#4ADE80">${fmtCurrency(ip.p)}<span style="font-size:10px;color:${C().text4};white-space:nowrap">${period==='monthly'?t('perMo')||'/mo':period==='quarterly'?t('per3mo')||'/3mo':t('per6mo')||'/6mo'}</span></div>
+          ${ip.savePer?`<div style="font-size:12px;font-weight:800;color:#F59E0B;margin-top:3px">${fmtCurrency(ip.savePer)}<span style="font-size:10px;color:${C().text4};white-space:nowrap">${t('perMo')||'/mo'}</span></div>`:""}
         </div>
         <div style="display:flex;flex-direction:column;gap:2px">
-          ${proFeats.map(f=>`<div style="font-size:10px;color:${C().text2}">✓ ${f.text}</div>`).join('')}
+          ${proFeats.map(f=>`<div style="font-size:9.5px;color:${C().text2};line-height:1.3">✓ ${f.text}</div>`).join('')}
         </div>
       </div>
-      <button onclick="handlePlan('pro-individual')" style="width:100%;margin-top:10px;padding:9px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:7px;color:#0D1117;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit">
+      <button onclick="handlePlan('pro-individual')" style="width:100%;margin-top:10px;padding:9px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:7px;color:#fff;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit">
         ${t('getProIndividual')||'Get Pro Individual'}
       </button>
     </div>
     `:`
     <!-- CORPORATE PLANS (unified style) -->
     ${[
-      {id:'corp-5',  name:t('planTeam'),       users:t('planTeam')+' · '+toLocalDigits('5')+' '+t('usersLabel'),    color:'#60A5FA', pr:cp.team, badge:t('badgeTeam')||'TEAM'},
-      {id:'corp-10', name:t('planBusiness'),   users:t('planBusiness')+' · '+toLocalDigits('10')+' '+t('usersLabel'),   color:'#A78BFA', pr:cp.biz,  badge:t('badgeBusiness')||'BUSINESS'},
-      {id:'corp-unl',name:t('planEnterprise'), users:t('planEnterprise')+' · '+toLocalDigits('100')+' '+t('usersLabel'),  color:'#F59E0B', pr:cp.ent,  badge:t('badgeEnterprise')||'ENTERPRISE'},
+      {id:'corp-5',  name:t('planTeam'),       users:toLocalDigits('5')+' '+t('usersLabel'),    color:'#60A5FA', pr:cp.team, badge:t('badgeTeam')||'TEAM'},
+      {id:'corp-10', name:t('planBusiness'),   users:toLocalDigits('10')+' '+t('usersLabel'),   color:'#A78BFA', pr:cp.biz,  badge:t('badgeBusiness')||'BUSINESS'},
+      {id:'corp-unl',name:t('planEnterprise'), users:toLocalDigits('100')+' '+t('usersLabel'),  color:'#F59E0B', pr:cp.ent,  badge:t('badgeEnterprise')||'ENTERPRISE'},
     ].map(plan=>`
     <div style="padding:11px;border-radius:10px;background:${C().bg2};border:1px solid ${plan.color}44;margin-bottom:8px;position:relative">
-      <div style="position:absolute;top:-9px;${isRtl?'left':'right'}:10px;background:${plan.color};border-radius:8px;padding:2px 8px;font-size:8px;font-weight:800;color:#0D1117">${plan.badge}</div>
+      <div style="position:absolute;top:-9px;${isRtl?'left':'right'}:10px;background:${plan.color};border-radius:8px;padding:2px 8px;font-size:8px;font-weight:800;color:#fff">${plan.badge}</div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div>
-          <div style="font-size:12px;font-weight:700;color:${C().text}">${plan.name} <span style="font-size:10px;color:${plan.color}">${plan.users}</span></div>
-          <div style="font-size:20px;font-weight:800;color:${plan.color}">${fmtCurrency(plan.pr.p)}<span style="font-size:10px;color:${C().text4}">${period==='monthly'?t('perMo')||'/mo':period==='quarterly'?t('per3mo')||'/3mo':t('per6mo')||'/6mo'}</span></div>
+          <div style="font-size:12px;font-weight:700;color:${C().text};line-height:1.2">${plan.name}<br><span style="font-size:10px;color:${plan.color};font-weight:600">${plan.users}</span></div>
+          <div style="font-size:20px;font-weight:900;color:${plan.color}">${fmtCurrency(plan.pr.p)}<span style="font-size:10px;color:${C().text4};white-space:nowrap">${period==='monthly'?t('perMo')||'/mo':period==='quarterly'?t('per3mo')||'/3mo':t('per6mo')||'/6mo'}</span></div>
           ${plan.pr.note?`<div style="font-size:12px;font-weight:700;color:#F59E0B;margin-top:3px">${fmtSeatNote(plan.pr.note)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;gap:2px">
-          <div style="font-size:10px;color:${C().text2}">${t('corpAllTools')}</div>
-          <div style="font-size:10px;color:${C().text2}">${t('corpOps')}</div>
-          <div style="font-size:10px;color:${C().text2}">${t('corpMlAi')}</div>
-          <div style="font-size:10px;color:${C().text2}">${t('corpLangs')}</div>
-          <div style="font-size:10px;color:${C().text2}">${t('corpPriority')}</div>
+          ${allFeats([true]).map(f=>`<div style="font-size:9.5px;color:${C().text2};line-height:1.3">✓ ${f.text}</div>`).join('')}
         </div>
       </div>
-      <button onclick="handlePlan('${plan.id}')" style="width:100%;margin-top:8px;padding:8px;background:${plan.color};border:none;border-radius:6px;color:#0D1117;font-weight:800;font-size:11px;cursor:pointer;font-family:inherit">
+      <button onclick="handlePlan('${plan.id}')" style="width:100%;margin-top:8px;padding:8px;background:${plan.color};border:none;border-radius:6px;color:#fff;font-weight:800;font-size:11px;cursor:pointer;font-family:inherit">
         ${plan.id==='corp-5'?t('getTeam')||'Get Team':plan.id==='corp-10'?t('getBusiness')||'Get Business':t('getEnterprise')||'Get Enterprise'}
       </button>
     </div>`).join('')}
@@ -3484,7 +3494,7 @@ function renderKeyInput(){
 
       <!-- Buttons -->
       ${keyState==='success'?`
-      <button onclick="activateLicenseFinal()" style="width:100%;padding:10px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:7px;color:#0D1117;font-weight:800;font-size:12px;cursor:pointer;margin-bottom:8px;font-family:inherit;animation:pulse 2s infinite">
+      <button onclick="activateLicenseFinal()" style="width:100%;padding:10px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:7px;color:#fff;font-weight:800;font-size:12px;cursor:pointer;margin-bottom:8px;font-family:inherit;animation:pulse 2s infinite">
         ✓ ${t('openApp')||'Open App →'}
       </button>`:`
       <button id="actBtn" onclick="simulateActivation()"
@@ -3501,10 +3511,6 @@ function renderKeyInput(){
         <div style="padding:9px 10px;background:${isDark?'#0A1929':'#E6F4FF'};border-radius:6px;border:1px solid #60A5FA33">
           <div style="font-size:10px;color:#60A5FA;font-weight:700;margin-bottom:3px">${t('internetRequiredTitle')||'🌐 Internet Required'}</div>
           <div style="font-size:10px;color:${C().text3};line-height:1.5">${t('internetRequiredDesc')||'An active internet connection is required at all times.'}</div>
-        </div>
-        <div style="padding:9px 10px;background:${isDark?'#1C1700':'#FFF8C5'};border-radius:6px;border:1px solid #F59E0B33">
-          <div style="font-size:10px;color:#F59E0B;font-weight:700;margin-bottom:3px">${t('mandatoryUpdateTitle')||'⚡ Mandatory Updates'}</div>
-          <div style="font-size:10px;color:${C().text3};line-height:1.5">${t('mandatoryUpdateDesc')||'When a required update is released, the add-in will be locked until updated.'}</div>
         </div>
         <div style="padding:9px 10px;background:${C().bg2};border-radius:6px;border:1px solid ${C().border}">
           <div style="font-size:10px;color:${C().text3};font-weight:700;margin-bottom:3px">${t('termsTitle')||'📋 Terms of Use'}</div>
@@ -3767,7 +3773,7 @@ function renderApp(isPro){
         <option value="hi"${lang==='hi'?' selected':''}>HI</option>
       </select>
       <button onclick="showInbox=true;rf(currentScreen==='app-pro')" title="Inbox" style="background:none;border:1px solid ${C().border};border-radius:4px;color:${C().text3};cursor:pointer;font-size:14px;padding:2px 5px;flex-shrink:0;position:relative;align-self:center">
-        ✉${unreadCount()>0?`<span style="position:absolute;top:-8px;${isRtl?'left:-8px':'right:-8px'};background:#c00;color:#fff;font-size:${isRtl?'12':'11'}px;font-weight:900;font-family:${isRtl?"'BKoodak','Vazirmatn','Tahoma',sans-serif":'inherit'};padding:1px 5px;border-radius:10px;min-width:18px;text-align:center;line-height:1.6;box-shadow:0 1px 4px #0006;white-space:nowrap">${unreadCount()>9?toLocalDigits('9')+'+':toLocalDigits(unreadCount())}</span>`:''}
+        ✉${(()=>{const uc=unreadCount();if(!uc)return '';const ff=lang==='fa'?"'BKoodak','Vazirmatn',sans-serif":lang==='ar'?"'Vazirmatn','Tahoma',sans-serif":'inherit';const fs=lang==='fa'||lang==='ar'?'12':'11';return `<span style="position:absolute;top:-8px;${isRtl?'left:-8px':'right:-8px'};background:#c00;color:#fff;font-size:${fs}px;font-weight:900;font-family:${ff};padding:1px 5px;border-radius:10px;min-width:18px;text-align:center;line-height:1.6;box-shadow:0 1px 4px #0006;white-space:nowrap">${uc>9?toLocalDigits('9')+'+':toLocalDigits(uc)}</span>`;})()}
       </button>
 <!-- lang switcher in global bar -->
 
@@ -3787,7 +3793,7 @@ function renderApp(isPro){
     <div style="display:flex;align-items:center;gap:5px;padding-bottom:8px">
       <span class="conn-dot" style="width:5px;height:5px;border-radius:50%;background:${isConnected?'#4ADE80':'#F87171'};display:inline-block;flex-shrink:0;transition:background .3s"></span>
       <span class="conn-text" style="font-size:10px;color:${C().text4}">${isConnected?(t('connected')||'Connected'):(t('disconnected')||'Disconnected')}</span>
-      <button onclick="togglePlan()" style="margin-left:6px;font-size:${(lang==='fa'||lang==='ar')?'10px':'9px'};font-weight:400;padding:2px 9px;border-radius:20px;letter-spacing:${(lang==='fa'||lang==='ar')?'0':'.04em'};text-transform:${(lang==='fa'||lang==='ar')?'none':'uppercase'};font-family:${lang==='fa'?'\'BKoodak\',\'Vazirmatn\',sans-serif':lang==='ar'?'\'Vazirmatn\',\'Tahoma\',sans-serif':'inherit'};background:${isPro?'linear-gradient(135deg,#818CF8,#6366F1)':isDark?'rgba(251,191,36,.13)':'rgba(245,158,11,.12)'};color:${isPro?'#ffffff':isDark?'#FBBF24':'#B45309'};border:none;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .2s;line-height:1.7;box-shadow:${isPro?'0 1px 8px rgba(99,102,241,.35)':'none'}">${isPro?t('planBadgePro')||'PRO':t('planBadgeFree')||'FREE'}</button>
+      <button onclick="togglePlan()" style="margin-left:6px;font-size:${(lang==='fa'||lang==='ar')?'10px':'9px'};font-weight:400;padding:2px 9px;border-radius:20px;letter-spacing:${(lang==='fa'||lang==='ar')?'0':'.04em'};text-transform:${(lang==='fa'||lang==='ar')?'none':'uppercase'};font-family:inherit;background:${isPro?'linear-gradient(135deg,#818CF8,#6366F1)':isDark?'rgba(251,191,36,.13)':'rgba(245,158,11,.12)'};color:${isPro?'#ffffff':isDark?'#FBBF24':'#B45309'};border:none;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .2s;line-height:1.7;box-shadow:${isPro?'0 1px 8px rgba(99,102,241,.35)':'none'}">${isPro?t('planBadgePro')||'PRO':t('planBadgeFree')||'FREE'}</button>
       <span style="margin-left:auto;font-size:11px;color:${isSearching?(results.length?'#4ADE80':'#F87171'):C().text4}">
         ${isSearching?toLocalDigits(results.length)+' '+(t('results')||'results'):toLocalDigits(TIERS.reduce((s,t)=>s+t.tools.length,0))+' '+(t('tools')||'tools')+' • '+toLocalDigits(totalOps())+' '+(t('ops')||'ops')}
       </span>
@@ -4000,12 +4006,96 @@ function renderWhatsNew(){
         </div>`).join('')}
     </div>
     <div style="padding:6px 14px 8px;border-top:1px solid ${C().border};flex-shrink:0;text-align:center">
-      <span style="font-size:10px;color:${C().text4}">${toLocalDigits(INBOX_MESSAGES.length)} ${INBOX_MESSAGES.length!==1?(t('inboxMessagesP')||'messages'):(t('inboxMessages')||'message')} · Swak</span>
+      <span style="font-size:10px;color:${C().text4}">${toLocalDigits(INBOX_MESSAGES.length)} ${INBOX_MESSAGES.length!==1?(t('inboxMessagesP')||'messages'):(t('inboxMessages')||'message')} · Swak Data Tools</span>
     </div>
   </div>
   <div style="position:fixed;inset:0;z-index:9998" onclick="showInbox=false;rf(currentScreen==='app-pro')"></div>`;
 }
 
+
+// ── Inline modal focus trap ──────────────────────────────────────────────────
+// Called after every rf() render. Finds any full-screen blocking overlay
+// (offline wall, update wall, device-conflict, etc.) that was rendered as
+// an HTML string into the frame, and applies a 4-layer focus trap on it.
+let _inlineTrapCleanup = null;
+
+function _applyInlineFocusTrap(frame) {
+  // Clean up any previous trap
+  if (_inlineTrapCleanup) { _inlineTrapCleanup(); _inlineTrapCleanup = null; }
+
+  // Detect any fixed full-screen overlay rendered inside the frame
+  const MODAL_IDS = ['swak-offline-wall','swak-update-wall','swak-device-conflict','swak-post-changelog'];
+  let modal = null;
+  for (const id of MODAL_IDS) {
+    const el = document.getElementById(id);
+    if (el) { modal = el; break; }
+  }
+  if (!modal) return; // no blocking modal — nothing to trap
+
+  // Layer 1: inert on all frame children except the modal
+  const inertTargets = Array.from(frame.children).filter(el => el !== modal);
+  inertTargets.forEach(el => { el.setAttribute('inert',''); el.setAttribute('data-swak-itrap','1'); });
+
+  // Layer 2: tabindex=-1 on all focusable elements outside modal
+  const FOCUSABLE = 'button,input,select,textarea,a[href],[tabindex]:not([tabindex="-1"])';
+  const outsideEls = Array.from(frame.querySelectorAll(FOCUSABLE)).filter(el => !modal.contains(el));
+  outsideEls.forEach(el => {
+    el._itrapPrevTabIndex = el.getAttribute('tabindex');
+    el.setAttribute('tabindex','-1');
+  });
+
+  // Layer 3+4: document-level keydown + focusin guards
+  const getFocusable = () => Array.from(modal.querySelectorAll('button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])'));
+
+  const keyHandler = (e) => {
+    if (e.key !== 'Tab') return;
+    const focusable = getFocusable();
+    if (!focusable.length) { e.preventDefault(); return; }
+    const first = focusable[0], last = focusable[focusable.length-1];
+    const active = document.activeElement;
+    if (e.shiftKey) {
+      if (active === first || !modal.contains(active)) { e.preventDefault(); last.focus(); }
+    } else {
+      if (active === last || !modal.contains(active)) { e.preventDefault(); first.focus(); }
+    }
+  };
+
+  const focusHandler = (e) => {
+    if (!modal.isConnected) return;
+    if (!modal.contains(e.target)) {
+      e.stopPropagation();
+      const focusable = getFocusable();
+      if (focusable.length) focusable[0].focus();
+    }
+  };
+
+  document.addEventListener('keydown', keyHandler, true);
+  document.addEventListener('focusin', focusHandler, true);
+
+  // Focus first button in modal
+  requestAnimationFrame(() => {
+    const firstBtn = modal.querySelector('button:not([disabled])');
+    if (firstBtn) firstBtn.focus();
+  });
+
+  // Cleanup function — called on next render or when modal is removed
+  _inlineTrapCleanup = () => {
+    document.removeEventListener('keydown', keyHandler, true);
+    document.removeEventListener('focusin', focusHandler, true);
+    frame.querySelectorAll('[data-swak-itrap]').forEach(el => {
+      el.removeAttribute('inert');
+      el.removeAttribute('data-swak-itrap');
+    });
+    outsideEls.forEach(el => {
+      if (el._itrapPrevTabIndex === null || el._itrapPrevTabIndex === undefined) {
+        el.removeAttribute('tabindex');
+      } else {
+        el.setAttribute('tabindex', el._itrapPrevTabIndex);
+      }
+      delete el._itrapPrevTabIndex;
+    });
+  };
+}
 
 function rf(isPro){
   const f=document.getElementById('frame');
@@ -4022,16 +4112,21 @@ function rf(isPro){
   f.innerHTML=`<div class="frame-inner">${html}</div>`;
 
   f.style.background=C().bg;
+  document.body.style.background=C().bg; // sync body bg with theme
   f.style.position='relative'; // for inbox dropdown
-  // Apply Farsi font when lang=fa
+  // Direction only — font is handled globally by @font-face unicode-range
   if(lang==='fa'||lang==='ar'){
-    f.style.fontFamily="'BKoodak','Vazirmatn','Tahoma','Arial',sans-serif";
     f.style.direction='rtl';
   } else {
-    f.style.fontFamily="'Inter','Segoe UI',system-ui,sans-serif";
     f.style.direction='ltr';
   }
+  f.style.fontFamily=''; // let body font-family cascade — no override
   f.className='frame'+(isDark?'':' light-frame');
+
+  // ── Post-render focus trap for inline modals (renderOfflineWall etc.) ──
+  // These are HTML strings injected into f.innerHTML, so we trap them here
+  // after DOM is ready, using the same 4-layer strategy as showErrorModal.
+  _applyInlineFocusTrap(f);
 }
 
 function showShareMenu(){
@@ -4181,9 +4276,42 @@ function showShareMenu(){
 // ══════════════════════════════════════════════════════════════
 function removeErrorModals() {
   ['swak-error-modal','swak-offline-wall'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el) el.remove();
+    const modal = document.getElementById(id);
+    if (!modal) return;
+
+    // ── Restore inert (modern browsers) ──
+    const frame = document.getElementById('frame');
+    if (frame) frame.querySelectorAll('[data-swak-inert]').forEach(el => {
+      el.removeAttribute('inert');
+      el.removeAttribute('data-swak-inert');
+    });
+
+    // ── Restore tabindex / disabled (fallback for older browsers) ──
+    if (modal._outsideEls) {
+      modal._outsideEls.forEach(el => {
+        // tabindex
+        if (el._prevTabIndex === null || el._prevTabIndex === undefined) {
+          el.removeAttribute('tabindex');
+        } else {
+          el.setAttribute('tabindex', el._prevTabIndex);
+        }
+        // disabled
+        if ('disabled' in el) el.disabled = !!el._prevDisabled;
+        delete el._prevTabIndex;
+        delete el._prevDisabled;
+      });
+    }
+
+    // ── Remove document-level focus/keydown guards ──
+    if (modal._docKeyHandler)  document.removeEventListener('keydown', modal._docKeyHandler,  true);
+    if (modal._docFocusHandler) document.removeEventListener('focusin', modal._docFocusHandler, true);
+
+    modal.remove();
   });
+  // Clear quota flag when modal is dismissed by user
+  if (!document.getElementById('swak-error-modal')) {
+    window._quotaModalOpen = false;
+  }
 }
 
 function showErrorModal({icon='⚠️', title, message, btnText, btnAction, lockApp=false, color='#F59E0B'}) {
@@ -4193,13 +4321,15 @@ function showErrorModal({icon='⚠️', title, message, btnText, btnAction, lock
 
   const overlay = document.createElement('div');
   overlay.id = 'swak-error-modal';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
   overlay.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.82);backdrop-filter:blur(6px);z-index:2147483640;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .25s ease`;
 
   const card = document.createElement('div');
-  const bg = isDark ? '#161B22' : '#FFFFFF';
-  const textC = isDark ? '#e6edf3' : '#1a1a2e';
-  const subC = isDark ? '#8b949e' : '#666';
-  const borderC = isDark ? '#30363d' : '#e1e4e8';
+  const bg = isDark ? '#161B22' : LIGHT.bg2;
+  const textC = isDark ? '#e6edf3' : LIGHT.text;
+  const subC = isDark ? '#8b949e' : LIGHT.text3;
+  const borderC = isDark ? '#30363d' : LIGHT.border;
   card.style.cssText = `background:${bg};border:1px solid ${borderC};border-radius:16px;padding:28px 24px;width:100%;max-width:280px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,0.5)`;
 
   card.innerHTML = `
@@ -4214,7 +4344,126 @@ function showErrorModal({icon='⚠️', title, message, btnText, btnAction, lock
   if(lockApp) overlay.onclick = e => e.stopPropagation();
   else overlay.onclick = e => { if(e.target===overlay) removeErrorModals(); };
   frame.appendChild(overlay);
+
+  // ── FOCUS TRAP — Layer 1: inert (modern browsers, handles everything natively) ──
+  // Mark every direct child of frame that is NOT the modal as inert.
+  // `inert` disables all interaction: keyboard, pointer, AT — no tabindex juggling needed.
+  const inertTargets = Array.from(frame.children).filter(el => el !== overlay);
+  inertTargets.forEach(el => {
+    if (!el.hasAttribute('inert')) {
+      el.setAttribute('inert', '');
+      el.setAttribute('data-swak-inert', '1');
+    }
+  });
+
+  // ── FOCUS TRAP — Layer 2: tabindex/-1 + disabled fallback (older browsers / Edge) ──
+  // Targets all interactive elements in frame that are outside the modal.
+  const FOCUSABLE = 'button,input,select,textarea,a[href],[tabindex]:not([tabindex="-1"])';
+  const outsideEls = Array.from(frame.querySelectorAll(FOCUSABLE)).filter(el => !overlay.contains(el));
+  outsideEls.forEach(el => {
+    el._prevTabIndex = el.getAttribute('tabindex');
+    el._prevDisabled = el.disabled;
+    el.setAttribute('tabindex', '-1');
+    if (el.tagName !== 'A' && 'disabled' in el) el.disabled = true;
+  });
+  overlay._outsideEls = outsideEls;
+
+  // ── FOCUS TRAP — Layer 3: document-level keydown guard (belt-and-suspenders) ──
+  // Intercepts Tab at capture phase — fires before any element receives focus.
+  const getFocusable = () => Array.from(
+    overlay.querySelectorAll('button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])')
+  );
+
+  const docKeyHandler = (e) => {
+    // Escape to close (unless locked)
+    if (e.key === 'Escape' && !lockApp) { removeErrorModals(); return; }
+    if (e.key !== 'Tab') return;
+
+    const focusable = getFocusable();
+    if (!focusable.length) { e.preventDefault(); return; }
+
+    const first = focusable[0];
+    const last  = focusable[focusable.length - 1];
+    const active = document.activeElement;
+
+    if (e.shiftKey) {
+      // Shift+Tab: if focus is on first (or outside modal), wrap to last
+      if (active === first || !overlay.contains(active)) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      // Tab: if focus is on last (or outside modal), wrap to first
+      if (active === last || !overlay.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  };
+  document.addEventListener('keydown', docKeyHandler, true); // capture phase
+  overlay._docKeyHandler = docKeyHandler;
+
+  // ── FOCUS TRAP — Layer 4: focusin guard ──
+  // If focus somehow lands outside the modal (e.g. browser quirk), yank it back.
+  const docFocusHandler = (e) => {
+    if (document.getElementById('swak-error-modal') && !overlay.contains(e.target)) {
+      e.stopPropagation();
+      const focusable = getFocusable();
+      if (focusable.length) focusable[0].focus();
+    }
+  };
+  document.addEventListener('focusin', docFocusHandler, true);
+  overlay._docFocusHandler = docFocusHandler;
+
+  // ── Initial focus ──
+  requestAnimationFrame(() => {
+    const firstBtn = overlay.querySelector('button:not([disabled])');
+    if (firstBtn) firstBtn.focus();
+  });
 }
+
+function showQuotaExceededModal(tokensUsed, tokensLimit) {
+  // Store values for re-render on language change
+  window._lastQuotaUsed  = tokensUsed;
+  window._lastQuotaLimit = tokensLimit;
+  window._quotaModalOpen = true;
+  _renderQuotaModal();
+}
+
+function _renderQuotaModal() {
+  if (!window._quotaModalOpen) return;
+  // Temporarily suppress quota flag clear so removeErrorModals doesn't kill the re-render loop
+  const _prev = window._quotaModalOpen;
+  removeErrorModals();
+  window._quotaModalOpen = _prev;
+  const used  = window._lastQuotaUsed  || 0;
+  const limit = window._lastQuotaLimit || 0;
+  const pct   = limit > 0 ? Math.min(100, Math.round(used/limit*100)) : 100;
+  showErrorModal({
+    icon: '🤖',
+    title:   t('quotaExceededTitle') || 'AI Quota Exceeded',
+    message: `<div style="margin-bottom:10px">${t('quotaExceededMsg')||'Monthly AI tokens exhausted.'}</div>
+              <div style="background:#1a1a2e22;border-radius:6px;padding:8px;font-size:10px;margin-bottom:4px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                  <span>${t('quotaUsage')||'Usage'}</span>
+                  <span>${used.toLocaleString()} / ${limit.toLocaleString()}</span>
+                </div>
+                <div style="background:#333;border-radius:4px;height:4px">
+                  <div style="background:#EF4444;height:4px;border-radius:4px;width:${pct}%"></div>
+                </div>
+              </div>`,
+    btnText:   t('quotaExceededBtn') || 'Buy More Tokens',
+    btnAction: "window.open('https://swaksoft.com/license#tokens','_blank')",
+    color: '#EF4444',
+  });
+}
+
+// Re-render quota modal when language changes
+const _origLangChange = typeof window._onLangChange === 'function' ? window._onLangChange : null;
+window._onLangChange = function() {
+  if (_origLangChange) _origLangChange();
+  if (window._quotaModalOpen) _renderQuotaModal();
+};
 
 function showDeviceTamperingModal() {
   showErrorModal({
@@ -4608,11 +4857,23 @@ async function _callBackend(tierId, toolId, params, headers, rows) {
     body,
     signal: AbortSignal.timeout(30000),
   });
+  if (resp.status === 429) {
+    const err = await resp.json().catch(()=>({}));
+    if (err.error === 'quota_exceeded') {
+      showQuotaExceededModal(err.tokens_used||0, err.tokens_limit||0);
+      throw new Error('quota_exceeded');
+    }
+  }
   if (!resp.ok) {
     const err = await resp.json().catch(()=>({error: resp.statusText}));
     throw new Error(err.error || 'Server error '+resp.status);
   }
-  return resp.json();
+  const data = await resp.json();
+  if (data.error === 'quota_exceeded') {
+    showQuotaExceededModal(data.tokens_used||0, data.tokens_limit||0);
+    throw new Error('quota_exceeded');
+  }
+  return data;
 }
 
 // ── Excel read / write helpers (Office.js) ───────────────────────────────
@@ -4775,6 +5036,12 @@ async function runTool(tierId, toolId, isPro){
 
     } catch(err) {
       console.error('SWAK backend error:', err);
+      if (err.message === 'quota_exceeded') {
+        // Quota modal already shown — just reset UI
+        showResult = false;
+        rf(isPro);
+        return;
+      }
       _showRunStep('#F87171','❌','Error: '+err.message.substring(0,60),null);
       await new Promise(r=>setTimeout(r,2000));
       showResult = false;
@@ -5354,10 +5621,10 @@ function showServerTimeoutModal() {
   overlay.id = 'swak-timeout-modal';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);backdrop-filter:blur(8px);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:16px';
   overlay.onclick = e => e.stopPropagation();
-  const bg = isDark ? '#161B22' : '#fff';
-  const tc = isDark ? '#e6edf3' : '#1a1a2e';
-  const sc = isDark ? '#8b949e' : '#666';
-  const bc = isDark ? '#30363d' : '#e1e4e8';
+  const bg = isDark ? '#161B22' : LIGHT.bg2;
+  const tc = isDark ? '#e6edf3' : LIGHT.text;
+  const sc = isDark ? '#8b949e' : LIGHT.text3;
+  const bc = isDark ? '#30363d' : LIGHT.border;
   overlay.innerHTML = `
     <div style="background:${bg};border:1px solid ${bc};border-radius:16px;padding:28px 24px;width:100%;max-width:280px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.5)">
       <div style="font-size:38px;margin-bottom:12px">⏱️</div>
@@ -5445,7 +5712,7 @@ async function startupFlow() {
       wall.id = 'swak-offline-wall';
       wall.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);backdrop-filter:blur(8px);z-index:2147483645;display:flex;align-items:center;justify-content:center;padding:16px';
       wall.onclick = e => e.stopPropagation();
-      const bg = isDark?'#161B22':'#fff', tc = isDark?'#e6edf3':'#1a1a2e', sc = isDark?'#8b949e':'#666', bc = isDark?'#30363d':'#e1e4e8';
+      const bg = isDark?'#161B22':LIGHT.bg2, tc = isDark?'#e6edf3':LIGHT.text, sc = isDark?'#8b949e':LIGHT.text3, bc = isDark?'#30363d':LIGHT.border;
       wall.innerHTML = `
         <div style="background:${bg};border:1px solid ${bc};border-radius:16px;padding:28px 24px;width:100%;max-width:280px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.5)">
           <div style="font-size:38px;margin-bottom:12px">📡</div>
