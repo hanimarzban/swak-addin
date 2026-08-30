@@ -52,7 +52,26 @@ mark{background:#F59E0B22;color:#F59E0B;border-radius:2px;padding:0 1px}
 
 <script>
 // ── THEME ──
-let isDark = true;
+// ── Theme — synced with swaksoft.com (key: 'swak-theme', hours: 7–19 light) ──
+const THEME_KEY  = 'swak-theme';
+const MANUAL_KEY = 'swak-theme-manual';
+
+function _themeByHour() {
+  const hr = new Date().getHours();
+  return (hr >= 7 && hr < 19) ? 'light' : 'dark';
+}
+
+function _loadTheme() {
+  const isManual = localStorage.getItem(MANUAL_KEY) === '1';
+  if (isManual) {
+    const saved = localStorage.getItem(THEME_KEY);
+    return saved ? saved === 'dark' : _themeByHour() === 'dark';
+  }
+  return _themeByHour() === 'dark';
+}
+
+let _userManualTheme = localStorage.getItem(MANUAL_KEY) === '1';
+let isDark = _loadTheme();
 let currentScreen = 'onboarding';
 let plan = 'free';
 let lang = 'en';
@@ -4525,7 +4544,25 @@ function show(s){
 }
 
 function toggleTheme(){isDark=!isDark;rf(currentScreen==='app-pro');}
-function toggleThemeInline(){isDark=!isDark;rf(currentScreen==='app-pro');}
+function toggleThemeInline(){
+  isDark = !isDark;
+  _userManualTheme = true;
+  localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+  localStorage.setItem(MANUAL_KEY, '1');
+  rf(currentScreen==='app-pro');
+}
+
+// ── Auto theme scheduler — every 60s, skips if user overrode manually ──
+(function _autoThemeScheduler(){
+  setInterval(function(){
+    if (_userManualTheme) return;
+    const shouldBeDark = _themeByHour() === 'dark';
+    if (shouldBeDark !== isDark) {
+      isDark = shouldBeDark;
+      rf(currentScreen === 'app-pro');
+    }
+  }, 60000);
+})();
 function changeLang(l){lang=l;rf(currentScreen==='app-pro');}
 function togglePlan(){if(isPlanPro())show(currentScreen==='app-pro'?'app':'app-pro');else show('keyinput');}
 function toggleTier(id,isPro){activeTier=activeTier===id?null:id;rf(isPro);}
