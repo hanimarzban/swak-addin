@@ -352,7 +352,7 @@ function _saveInboxRead(ids) {
 const INBOX_MESSAGES = [
   {
     id: 'msg_welcome_v1',
-    from: 'Swak Soft Team',
+    from: 'SwakSoft Ltd.',
     subject: "👋 Welcome to Swak Data Tools!",
     date: '2026-08-29',
     get read() { return _loadInboxRead().includes(this.id); },
@@ -3225,7 +3225,7 @@ function renderStartup(){
       </div>
       <div style="font-size:12px;color:${colors[startupStatus]};font-weight:600">${msgs[startupStatus]}</div>
     </div>
-    <div style="position:absolute;bottom:14px;font-size:10px;color:${C().text4}">Version ${APP_VERSION||'2.0.0'}</div>
+    <div style="position:absolute;bottom:14px;font-size:10px;color:${C().text4}">Version ${APP_VERSION||'1'}</div>
   </div>`;
 }
 
@@ -3405,7 +3405,7 @@ function renderOnboarding(){
 
   <!-- FOOTER -->
   <div style="padding:6px 14px 8px;border-top:1px solid ${C().border};background:${C().bg2};text-align:center;flex-shrink:0">
-    <div style="font-size:10px;color:${C().text4}">Swak v${APP_VERSION} · <a href="https://swaksoft.com" style="color:${C().text4};text-decoration:none">swaksoft.com</a> · <a href="https://swaksoft.com/support" style="color:${C().text4};text-decoration:none">${t('support')||'Support'}</a></div>
+    <div style="font-size:10px;color:${C().text4}">Swak Data Tools v${APP_VERSION} · <a href="https://swaksoft.com" style="color:${C().text4};text-decoration:none">swaksoft.com</a> · <a href="https://swaksoft.com/support" style="color:${C().text4};text-decoration:none">${t('support')||'Support'}</a></div>
   </div>
 </div>`;
 }
@@ -5376,7 +5376,7 @@ function renderRuntimeGate() {
     </button>
 
     <!-- Version -->
-    <div style="font-size:9px;color:${C().text4};margin-top:4px">SWAK v${APP_VERSION||'2.0.0'}</div>
+    <div style="font-size:9px;color:${C().text4};margin-top:4px">Swak Data Tools v${APP_VERSION||'1'}</div>
   </div>`;
 }
 
