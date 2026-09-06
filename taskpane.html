@@ -3471,11 +3471,11 @@ function renderKeyInput(){
 
       <!-- Input with state indicator -->
       <div style="position:relative;margin-bottom:6px">
-        <input id="keyIn" maxlength="20" 
+        <input id="keyIn" maxlength="24" 
           placeholder="${isChangingLicense&&!changingMode?maskedKey:'SWAK-XXXX-XXXX-XXXX-XXXX'}"
           value="${isChangingLicense&&!changingMode?(licenseState.licenseKey||''):''}"
           oninput="${changingMode||!isChangingLicense?'checkKey(this.value)':''}"
-          onpaste="if(changingMode||!window._isChangingLicense){const t=event.clipboardData?.getData('text')||'';const s=t.replace(/[^A-Za-z0-9\\-]/g,'');if(s!==t){event.preventDefault();const san=s.substring(0,20).toUpperCase();const i=document.getElementById('keyIn');if(i){i.value=san;checkKey(san);}};}"
+          onpaste="if(changingMode||!window._isChangingLicense){const t=event.clipboardData?.getData('text')||'';const s=t.replace(/[^A-Za-z0-9\\-]/g,'');if(s!==t){event.preventDefault();const san=s.substring(0,24).toUpperCase();const i=document.getElementById('keyIn');if(i){i.value=san;checkKey(san);}};}"
           onkeydown="const c=event.key;if(c.length===1&&!/[A-Za-z0-9\\-]/.test(c)){event.preventDefault();}"
           ${isChangingLicense&&!changingMode?'disabled':''}
           style="width:100%;background:${isChangingLicense&&!changingMode?C().bg3:keyState==='error'?isDark?'#2A0F0F':'#FFEBE9':keyState==='success'?isDark?'#0F2A1A':'#DAFBE1':C().bg2};border:1px solid ${keyState==='error'?'#F87171':keyState==='success'?'#4ADE80':C().border2};border-radius:6px;color:${isChangingLicense&&!changingMode?C().text4:C().text};font-size:11px;padding:10px 36px 10px 12px;box-sizing:border-box;font-family:monospace;letter-spacing:.06em;text-align:center;transition:all .2s;cursor:${isChangingLicense&&!changingMode?'default':'text'}"/>
@@ -4589,11 +4589,11 @@ function handleKey(e,isPro){
 
 function sanitizeLicenseInput(v){
   // فقط حروف انگلیسی، اعداد و خط تیره مجاز است
-  return v.replace(/[^A-Za-z0-9\-]/g,'').toUpperCase().substring(0,20);
+  return v.replace(/[^A-Za-z0-9\-]/g,'').toUpperCase().substring(0,24);
 }
 function isValidLicenseFormat(v){
   const s=v.trim();
-  return s.length===20 && s.startsWith('SWAK');
+  return s.length===24 && s.startsWith('SWAK');
 }
 function checkKey(v){
   // sanitize اول
