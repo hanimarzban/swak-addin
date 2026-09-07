@@ -234,7 +234,8 @@ async function validateLicenseFromServer(key) {
   const deviceId = getDeviceFingerprint();
   
   // Anti-spoofing check before sending
-  if(!deviceId || deviceId.length < 32) {
+  // In some environments (browser preview, non-Office) fingerprint may be shorter
+  if(!deviceId) {
     return { valid: false, error: 'INVALID_DEVICE', errorCode: 'INVALID_DEVICE' };
   }
 
@@ -283,6 +284,10 @@ function applyServerLicense(serverResp, key) {
       licenseKey: key,
       deviceId: getDeviceFingerprint(),
       lastValidated: Date.now(),
+      buyerName: serverResp.buyerName || licenseState.buyerName || '',
+      buyerEmail: serverResp.buyerEmail || licenseState.buyerEmail || '',
+      activatedAt: serverResp.activatedAt || licenseState.activatedAt || null,
+      _tok: null,
     };
     // Refresh lastValidated every 5 min to keep isPlanPro() returning true
     // (in production this is done by scheduleRevalidation)
@@ -735,7 +740,7 @@ var I18N = {
     freeBadge:'FREE', proBadge:'pro', planBadgePro:'PRO', planBadgeFree:'FREE', upgrade:'Upgrade to unlock all 215 Tools',
     haveKey:'I already have a license key',
     activateBtn:'Activate License', enterKey:'Enter License Key',
-    keyDesc:'Check your email after purchase at', back:'Back', backToInbox:'Back to Inbox',
+    keyDesc:'Check your email after purchase at', back:'Back', licenseChanged:'License updated successfully.', firstActivation:'License activated! Welcome to Swak Data Tools.', backToInbox:'Back to Inbox',
     secTitle:'Security', secDesc:'Each license is activated on exactly 1 computer and cannot be activated on any other device. This ensures your license is always available for your personal use.',
     continueF:'Continue Free ', runTool:'Run Tool', done:'Done',
     params:'Params', selectCol:'— Select column —', noParams:'No configuration needed',
@@ -784,7 +789,7 @@ var I18N = {
     support:'Support', share:'Share', shareTitle:'Share Swak Data Tools', copyMsg:'Copy Message', cancelShare:'Cancel', copiedMsg:'Copied!',
     keyDesc:'Check your email after purchase at',
     langs:'langs', excelLabel:'Excel', perMo:'/mo', per3mo:'/3mo', per6mo:'/6mo',
-    tools:'tools', ops:'ops', free:'Free', back:'Back', backToInbox:'Back to Inbox',
+    tools:'tools', ops:'ops', free:'Free', back:'Back', licenseChanged:'License updated successfully.', firstActivation:'License activated! Welcome to Swak Data Tools.', backToInbox:'Back to Inbox',
     internetRequiredTitle:'🌐 Internet Required', internetRequiredDesc:'An active internet connection is required at all times. If your connection drops, Swak Data Tools will be temporarily unavailable until reconnected.',
     termsTitle:'Terms of Use', termsDesc:'By activating a license, you agree: (1) One license = one device; (2) No reverse engineering or bypass attempts; (3) No unauthorized redistribution; (4) Internet connection required for operation. Full terms:',
   },
@@ -809,7 +814,7 @@ var I18N = {
     freeBadge:'رایگان', proBadge:'پرو', planBadgePro:'نسخه حرفه‌ای', planBadgeFree:'نسخه رایگان', upgrade:'ارتقا, همه ۲۱۵ ابزار',
     haveKey:'کلید لایسنس دارم',
     activateBtn:'فعال‌سازی لایسنس', enterKey:'کلید لایسنس را وارد کنید',
-    keyDesc:'پس از خرید لایسنس از وب‌سایت، ایمیل خود را بررسی کنید.', back:'بازگشت', backToInbox:'بازگشت به صندوق',
+    keyDesc:'پس از خرید لایسنس از وب‌سایت، ایمیل خود را بررسی کنید.', back:'بازگشت', licenseChanged:'لایسنس با موفقیت تغییر کرد.', firstActivation:'لایسنس فعال شد! به Swak Data Tools خوش آمدید.', backToInbox:'بازگشت به صندوق',
     secTitle:'امنیت', secDesc:'هر لایسنس دقیقاً روی ۱ کامپیوتر فعال می‌شود و امکان فعال‌سازی روی دستگاه دیگری وجود ندارد. این اطمینان می‌دهد که لایسنس همیشه برای استفاده شخصی شما در دسترس است.',
     continueF:'ادامه رایگان ', runTool:'اجرا', done:'بازگشت',
     params:'تنظیمات', selectCol:'— ستون را انتخاب کنید —', noParams:'این ابزار نیازی به تنظیم ندارد',
@@ -857,7 +862,7 @@ var I18N = {
     support:'پشتیبانی', share:'اشتراک‌گذاری', shareTitle:'اشتراک‌گذاری Swak Data Tools', copyMsg:'کپی پیام', cancelShare:'انصراف', copiedMsg:'کپی شد!',
     keyDesc:'بعد از خرید لایسنس از وب‌سایت، ایمیل خود را بررسی کنید.',
     langs:'زبان', excelLabel:'اکسل', perMo:'/ماه', per3mo:'/۳ ماه', per6mo:'/۶ ماه',
-    tools:'ابزار', ops:'عملیات', free:'رایگان', back:'بازگشت', backToInbox:'بازگشت به صندوق',
+    tools:'ابزار', ops:'عملیات', free:'رایگان', back:'بازگشت', licenseChanged:'لایسنس با موفقیت تغییر کرد.', firstActivation:'لایسنس فعال شد! به Swak Data Tools خوش آمدید.', backToInbox:'بازگشت به صندوق',
     internetRequiredTitle:'🌐 نیاز به اینترنت', internetRequiredDesc:'اتصال فعال به اینترنت در تمام اوقات الزامی است. در صورت قطع ارتباط، Swak Data Tools تا زمان اتصال مجدد موقتاً در دسترس نخواهد بود.',
     termsTitle:'شرایط استفاده', termsDesc:'با فعال‌سازی لایسنس موافقت می‌کنید: (۱) یک لایسنس = یک دستگاه؛ (۲) بدون مهندسی معکوس؛ (۳) بدون توزیع غیرمجاز؛ (۴) اتصال اینترنت برای عملکرد لازم است. متن کامل:',
   },
@@ -882,7 +887,7 @@ var I18N = {
     freeBadge:'مجاني', proBadge:'برو', planBadgePro:'النسخة الاحترافية', planBadgeFree:'النسخة المجانية', upgrade:'ترقية, جميع ٢١٥ أداة',
     haveKey:'لدي مفتاح ترخيص',
     activateBtn:'تفعيل الترخيص', enterKey:'أدخل مفتاح الترخيص',
-    keyDesc:'بعد شراء الترخيص من الموقع، تحقق من بريدك الإلكتروني.', back:'رجوع', backToInbox:'الرجوع إلى البريد',
+    keyDesc:'بعد شراء الترخيص من الموقع، تحقق من بريدك الإلكتروني.', back:'رجوع', licenseChanged:'تم تحديث الترخيص بنجاح.', firstActivation:'تم تفعيل الترخيص! مرحباً بك في Swak Data Tools.', backToInbox:'الرجوع إلى البريد',
     secTitle:'الأمان', secDesc:'يتم تفعيل كل ترخيص على جهاز كمبيوتر واحد فقط ولا يمكن تفعيله على أي جهاز آخر. هذا يضمن أن ترخيصك متاح دائمًا للاستخدام الشخصي.',
     continueF:'استمر مجاناً ', runTool:'تشغيل', done:'تم',
     params:'المعاملات', selectCol:'— اختر عموداً —', noParams:'لا يحتاج هذا الأداة إلى إعداد',
@@ -928,7 +933,7 @@ var I18N = {
     faqHelp:'الأسئلة الشائعة', deviceIndividual:'١ جهاز (فردي)',
     support:'الدعم', share:'مشاركة', shareTitle:'مشاركة Swak Data Tools', copyMsg:'نسخ الرسالة', cancelShare:'إلغاء', copiedMsg:'تم النسخ!',
     langs:'لغات', excelLabel:'إكسل', perMo:'/شهر', per3mo:'/٣ أشهر', per6mo:'/٦ أشهر',
-    tools:'أدوات', ops:'عمليات', free:'مجاني', back:'رجوع', backToInbox:'الرجوع إلى البريد',
+    tools:'أدوات', ops:'عمليات', free:'مجاني', back:'رجوع', licenseChanged:'تم تحديث الترخيص بنجاح.', firstActivation:'تم تفعيل الترخيص! مرحباً بك في Swak Data Tools.', backToInbox:'الرجوع إلى البريد',
     internetRequiredTitle:'🌐 الإنترنت مطلوب', internetRequiredDesc:'يجب توفر اتصال إنترنت نشط دائمًا. في حال انقطاع الاتصال، سيكون Swak Data Tools غير متاح مؤقتًا.',
     termsTitle:'شروط الاستخدام', termsDesc:'بالتفعيل توافق على: (١) ترخيص واحد = جهاز واحد؛ (٢) لا هندسة عكسية؛ (٣) الإنترنت مطلوب للتشغيل. الشروط الكاملة:',
   },
@@ -953,7 +958,7 @@ var I18N = {
     freeBadge:'KOSTENLOS', proBadge:'pro', planBadgePro:'PRO', planBadgeFree:'KOSTENLOS', upgrade:'Upgrade to unlock alle 215 Tools',
     haveKey:'Ich habe bereits einen Lizenzschlüssel',
     activateBtn:'Lizenz aktivieren', enterKey:'Lizenzschlüssel eingeben',
-    keyDesc:'Prüfe deine E-Mail nach dem Kauf bei', back:'Zurück', backToInbox:'Zurück zum Posteingang',
+    keyDesc:'Prüfe deine E-Mail nach dem Kauf bei', back:'Zurück', licenseChanged:'Lizenz erfolgreich aktualisiert.', firstActivation:'Lizenz aktiviert! Willkommen bei Swak Data Tools.', backToInbox:'Zurück zum Posteingang',
     secTitle:'Sicherheit', secDesc:'Jede Lizenz wird auf genau 1 Computer aktiviert und kann auf keinem anderen Gerät aktiviert werden. Dies stellt sicher, dass Ihre Lizenz immer für Ihren persönlichen Gebrauch verfügbar ist.',
     continueF:'Kostenlos fortfahren ', runTool:'Ausführen', done:'Fertig',
     params:'Parameter', selectCol:'— Spalte auswählen —', noParams:'Keine Konfiguration erforderlich',
@@ -979,7 +984,7 @@ var I18N = {
     support:'Support', share:'Teilen', shareTitle:'Swak Data Tools teilen', copyMsg:'Nachricht kopieren', cancelShare:'Abbrechen', copiedMsg:'Kopiert!',
     keyDesc:'Nach dem Kauf finden Sie den Schlüssel in Ihrer E-Mail bei',
     langs:'Sprachen', excelLabel:'Excel', perMo:'/Mo', per3mo:'/3Mo', per6mo:'/6Mo',
-    tools:'Tools', ops:'Ops', free:'Kostenlos', back:'Zurück', backToInbox:'Zurück zum Posteingang',
+    tools:'Tools', ops:'Ops', free:'Kostenlos', back:'Zurück', licenseChanged:'Lizenz erfolgreich aktualisiert.', firstActivation:'Lizenz aktiviert! Willkommen bei Swak Data Tools.', backToInbox:'Zurück zum Posteingang',
     internetRequiredTitle:'🌐 Internetverbindung erforderlich', internetRequiredDesc:'Eine aktive Internetverbindung ist jederzeit erforderlich. Bei Verbindungsabbruch ist Swak Data Tools vorübergehend nicht verfügbar.',
     termsTitle:'Nutzungsbedingungen', termsDesc:'Mit der Aktivierung stimmen Sie zu: (1) Eine Lizenz = ein Gerät; (2) Kein Reverse Engineering; (3) Kein unberechtigter Weitervertrieb; (4) Internet erforderlich. Vollständige Bedingungen:',
     keyError_INVALID_KEY:'Ungültiger Schlüssel.',
@@ -1015,7 +1020,7 @@ var I18N = {
     freeBadge:'GRATUIT', proBadge:'pro', planBadgePro:'PRO', planBadgeFree:'GRATUIT', upgrade:'Mettre à niveau, 215 outils',
     haveKey:"J\'ai déjà une clé de licence",
     activateBtn:'Activer la licence', enterKey:'Entrer la clé de licence',
-    keyDesc:'Vérifiez votre e-mail après achat sur', back:'Retour', backToInbox:'Retour à la boîte',
+    keyDesc:'Vérifiez votre e-mail après achat sur', back:'Retour', licenseChanged:'Licence mise à jour avec succès.', firstActivation:'Licence activée! Bienvenue dans Swak Data Tools.', backToInbox:'Retour à la boîte',
     secTitle:'Sécurité', secDesc:'Chaque licence est activée sur exactement 1 ordinateur et ne peut pas être activée sur un autre appareil. Cela garantit que votre licence est toujours disponible pour votre usage personnel.',
     continueF:'Continuer gratuitement ', runTool:'Exécuter', done:'Terminé',
     params:'Paramètres', selectCol:'— Sélectionner une colonne —', noParams:'Aucune configuration nécessaire',
@@ -1041,7 +1046,7 @@ var I18N = {
     support:'Support', share:'Partager', shareTitle:'Partager Swak Data Tools', copyMsg:'Copier le message', cancelShare:'Annuler', copiedMsg:'Copié!',
     keyDesc:'Trouvez la clé dans votre e-mail après l\'achat sur',
     langs:'langues', excelLabel:'Excel', perMo:'/mois', per3mo:'/3 mois', per6mo:'/6 mois',
-    tools:'outils', ops:'ops', free:'Gratuit', back:'Retour', backToInbox:'Retour à la boîte',
+    tools:'outils', ops:'ops', free:'Gratuit', back:'Retour', licenseChanged:'Licence mise à jour avec succès.', firstActivation:'Licence activée! Bienvenue dans Swak Data Tools.', backToInbox:'Retour à la boîte',
     internetRequiredTitle:'🌐 Connexion Internet requise', internetRequiredDesc:'Une connexion Internet active est requise en permanence. En cas de coupure, Swak Data Tools sera temporairement indisponible.',
     termsTitle:'Conditions d\'utilisation', termsDesc:'En activant, vous acceptez : (1) Une licence = un appareil ; (2) Pas d\'ingénierie inverse ; (3) Pas de redistribution non autorisée ; (4) Internet requis. Conditions complètes :',
     keyError_INVALID_KEY:'Clé invalide.',
@@ -1103,7 +1108,7 @@ var I18N = {
     support:'Soporte', share:'Compartir', shareTitle:'Compartir Swak Data Tools', copyMsg:'Copiar mensaje', cancelShare:'Cancelar', copiedMsg:'Copiado!',
     keyDesc:'Encuentra la clave en tu correo después de la compra en',
     langs:'idiomas', excelLabel:'Excel', perMo:'/mes', per3mo:'/3 meses', per6mo:'/6 meses',
-    tools:'herramientas', ops:'ops', free:'Gratis', back:'Volver', backToInbox:'Volver a la bandeja',
+    tools:'herramientas', ops:'ops', free:'Gratis', back:'Volver', licenseChanged:'Licencia actualizada con éxito.', firstActivation:'¡Licencia activada! Bienvenido a Swak Data Tools.', backToInbox:'Volver a la bandeja',
     internetRequiredTitle:'🌐 Conexión a Internet requerida', internetRequiredDesc:'Se requiere una conexión a Internet activa en todo momento. Si se interrumpe, Swak Data Tools no estará disponible temporalmente.',
     termsTitle:'Términos de uso', termsDesc:'Al activar, acepta: (1) Una licencia = un dispositivo; (2) Sin ingeniería inversa; (3) Sin redistribución no autorizada; (4) Internet requerido. Términos completos:',
     keyError_INVALID_KEY:'Clave inválida.',
@@ -1139,7 +1144,7 @@ var I18N = {
     freeBadge:'免费', proBadge:'专业', planBadgePro:'专业版', planBadgeFree:'免费版', upgrade:'升级, 全部215个工具',
     haveKey:'我已有许可证密钥',
     activateBtn:'激活许可证', enterKey:'输入许可证密钥',
-    keyDesc:'购买后请查收邮件', back:'返回', backToInbox:'返回收件箱',
+    keyDesc:'购买后请查收邮件', back:'返回', licenseChanged:'许可证更新成功。', firstActivation:'许可证已激活！欢迎使用 Swak Data Tools。', backToInbox:'返回收件箱',
     secTitle:'安全', secDesc:'每个许可证仅在1台电脑上激活，无法在其他设备上激活。这确保您的许可证始终可供您个人使用。',
     continueF:'免费继续 ', runTool:'运行', done:'完成',
     params:'参数', selectCol:'— 选择列 —', noParams:'无需配置',
@@ -1165,7 +1170,7 @@ var I18N = {
     support:'支持', share:'分享', shareTitle:'分享 Swak Data Tools', copyMsg:'复制消息', cancelShare:'取消', copiedMsg:'已复制!',
     keyDesc:'购买后请在以下网站查收邮件中的密钥',
     langs:'种语言', excelLabel:'Excel', perMo:'/月', per3mo:'/3月', per6mo:'/6月',
-    tools:'工具', ops:'操作', free:'免费', back:'返回', backToInbox:'返回收件箱',
+    tools:'工具', ops:'操作', free:'免费', back:'返回', licenseChanged:'许可证更新成功。', firstActivation:'许可证已激活！欢迎使用 Swak Data Tools。', backToInbox:'返回收件箱',
     internetRequiredTitle:'🌐 需要网络连接', internetRequiredDesc:'始终需要活动的网络连接。如果连接中断，Swak Data Tools将暂时不可用。',
     termsTitle:'使用条款', termsDesc:'激活即表示您同意：(1) 一个许可证 = 一台设备；(2) 禁止反向工程；(3) 禁止未授权分发；(4) 需要网络连接。完整条款：',
     keyError_INVALID_KEY:'无效密钥。',
@@ -1201,7 +1206,7 @@ var I18N = {
     freeBadge:'БЕСПЛАТНО', proBadge:'про', planBadgePro:'PRO', planBadgeFree:'БЕСПЛАТНО', upgrade:'Обновить, все 215 инструментов',
     haveKey:'У меня уже есть лицензионный ключ',
     activateBtn:'Активировать лицензию', enterKey:'Введите лицензионный ключ',
-    keyDesc:'Проверьте email после покупки на', back:'Назад', backToInbox:'Назад к сообщениям',
+    keyDesc:'Проверьте email после покупки на', back:'Назад', licenseChanged:'Лицензия успешно обновлена.', firstActivation:'Лицензия активирована! Добро пожаловать в Swak Data Tools.', backToInbox:'Назад к сообщениям',
     secTitle:'Безопасность', secDesc:'Каждая лицензия активируется ровно на 1 компьютере и не может быть активирована на другом устройстве. Это гарантирует, что ваша лицензия всегда доступна для личного использования.',
     continueF:'Продолжить бесплатно ', runTool:'Запустить', done:'Готово',
     params:'Параметры', selectCol:'— Выберите столбец —', noParams:'Настройка не требуется',
@@ -1227,7 +1232,7 @@ var I18N = {
     support:'Поддержка', share:'Поделиться', shareTitle:'Поделиться Swak Data Tools', copyMsg:'Копировать сообщение', cancelShare:'Отмена', copiedMsg:'Скопировано!',
     keyDesc:'После покупки найдите ключ в письме на',
     langs:'языков', excelLabel:'Excel', perMo:'/мес', per3mo:'/3 мес', per6mo:'/6 мес',
-    tools:'инструментов', ops:'операций', free:'Бесплатно', back:'Назад', backToInbox:'Назад к сообщениям',
+    tools:'инструментов', ops:'операций', free:'Бесплатно', back:'Назад', licenseChanged:'Лицензия успешно обновлена.', firstActivation:'Лицензия активирована! Добро пожаловать в Swak Data Tools.', backToInbox:'Назад к сообщениям',
     internetRequiredTitle:'🌐 Требуется интернет', internetRequiredDesc:'Постоянное активное подключение к интернету обязательно. При обрыве связи Swak Data Tools будет временно недоступен.',
     termsTitle:'Условия использования', termsDesc:'Активируя, вы соглашаетесь: (1) Одна лицензия = одно устройство; (2) Запрещён реверс-инжиниринг; (3) Запрещено несанкционированное распространение; (4) Требуется интернет. Полные условия:',
     keyError_INVALID_KEY:'Неверный ключ.',
@@ -1263,7 +1268,7 @@ var I18N = {
     freeBadge:'निःशुल्क', proBadge:'प्रो', planBadgePro:'PRO', planBadgeFree:'मुफ्त', upgrade:'अपग्रेड, सभी 215 टूल्स',
     haveKey:'मेरे पास पहले से लाइसेंस कुंजी है',
     activateBtn:'लाइसेंस सक्रिय करें', enterKey:'लाइसेंस कुंजी दर्ज करें',
-    keyDesc:'खरीद के बाद ईमेल जांचें', back:'वापस', backToInbox:'इनबॉक्स पर वापस',
+    keyDesc:'खरीद के बाद ईमेल जांचें', back:'वापस', licenseChanged:'लाइसेंस सफलतापूर्वक अपडेट किया।', firstActivation:'लाइसेंस सक्रिय! Swak Data Tools में आपका स्वागत है।', backToInbox:'इनबॉक्स पर वापस',
     secTitle:'सुरक्षा', secDesc:'प्रत्येक लाइसेंस केवल 1 कंप्यूटर पर सक्रिय होता है और किसी अन्य डिवाइस पर सक्रिय नहीं किया जा सकता। यह सुनिश्चित करता है कि आपका लाइसेंस हमेशा आपके व्यक्तिगत उपयोग के लिए उपलब्ध है।',
     continueF:'निःशुल्क जारी रखें ', runTool:'चलाएं', done:'हो गया',
     params:'पैरामीटर', selectCol:'— कॉलम चुनें —', noParams:'कोई कॉन्फ़िगरेशन आवश्यक नहीं',
@@ -1289,7 +1294,7 @@ var I18N = {
     support:'सहायता', share:'साझा करें', shareTitle:'Swak Data Tools साझा करें', copyMsg:'संदेश कॉपी करें', cancelShare:'रद्द करें', copiedMsg:'कॉपी हो गया!',
     keyDesc:'खरीद के बाद अपने ईमेल में कुंजी देखें',
     langs:'भाषाएँ', excelLabel:'Excel', perMo:'/माह', per3mo:'/3 माह', per6mo:'/6 माह',
-    tools:'उपकरण', ops:'ऑप्स', free:'मुफ़्त', back:'वापस', backToInbox:'इनबॉक्स पर वापस',
+    tools:'उपकरण', ops:'ऑप्स', free:'मुफ़्त', back:'वापस', licenseChanged:'लाइसेंस सफलतापूर्वक अपडेट किया।', firstActivation:'लाइसेंस सक्रिय! Swak Data Tools में आपका स्वागत है।', backToInbox:'इनबॉक्स पर वापस',
     internetRequiredTitle:'🌐 इंटरनेट आवश्यक है', internetRequiredDesc:'हर समय सक्रिय इंटरनेट कनेक्शन आवश्यक है। कनेक्शन टूटने पर Swak Data Tools अस्थायी रूप से अनुपलब्ध रहेगा।',
     termsTitle:'उपयोग की शर्तें', termsDesc:'सक्रिय करने पर आप सहमत हैं: (1) एक लाइसेंस = एक डिवाइस; (2) रिवर्स इंजीनियरिंग नहीं; (3) अनधिकृत वितरण नहीं; (4) इंटरनेट आवश्यक। पूर्ण शर्तें:',
     keyError_INVALID_KEY:'अमान्य कुंजी।',
@@ -3439,7 +3444,7 @@ function renderKeyInput(){
     </div>
     <!-- BACK BUTTON BAR -->
     ${(window._keyPrevScreen&&window._keyPrevScreen!=='keyinput')?`<div style="padding:6px 14px;background:${C().bg};border-bottom:1px solid ${C().border};flex-shrink:0">
-      <button onclick="show(window._keyPrevScreen||'onboarding')" style="display:inline-flex;align-items:center;gap:6px;background:${C().bg2};border:1px solid ${C().border};border-radius:6px;color:${C().text2};cursor:pointer;font-size:11px;font-weight:600;padding:5px 12px;font-family:inherit">
+      <button onclick="if(isPlanPro()&&licenseState.licenseKey){activateLicenseFinal();}else{show(window._keyPrevScreen||'onboarding');}" style="display:inline-flex;align-items:center;gap:6px;background:${C().bg2};border:1px solid ${C().border};border-radius:6px;color:${C().text2};cursor:pointer;font-size:11px;font-weight:600;padding:5px 12px;font-family:inherit">
         ${t('back')||'Back'}
       </button>
     </div>`:''}
@@ -3493,6 +3498,7 @@ function renderKeyInput(){
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
           <div style="font-size:10px;color:${C().text4}">${t('plan')||'Plan'}</div>
           <div style="font-size:10px;font-weight:600;color:${C().text2}">${licenseState.plan==='corp-5'?'Team (5)':licenseState.plan==='corp-10'?'Business (10)':licenseState.plan==='corp-unlimited'?'Enterprise':'Pro Individual'}</div>
+          ${licenseState.buyerName?`<div style="font-size:10px;color:${C().text4}">Name</div><div style="font-size:10px;color:${C().text2}">${licenseState.buyerName}</div>`:''}
           <div style="font-size:10px;color:${C().text4}">${t('daysLabel')||'Days Remaining'}</div>
           <div style="font-size:10px;font-weight:700;color:${getDaysColor()}">${licenseState.daysRemaining} ${t('days')||'days'} ${licenseState.daysRemaining<=7?'⚠':licenseState.daysRemaining<=3?'🔴':''}</div>
           <div style="font-size:10px;color:${C().text4}">${t('expiresLabel')||'Expires'}</div>
@@ -4518,7 +4524,19 @@ function show(s){
     console.warn('[SWAK] Navigation blocked, runtime not installed');
     return;
   }
-  if(s==='keyinput') window._keyPrevScreen = currentScreen || 'onboarding';
+  if(s==='keyinput') {
+    window._keyPrevScreen = currentScreen || 'onboarding';
+    // If license already valid, show Open App button immediately
+    if(isPlanPro() && licenseState.licenseKey) {
+      window._keyState = 'success';
+      window._keyValid = true;
+      // Pre-fill key input with saved key
+      setTimeout(()=>{
+        const inp = document.getElementById('keyIn');
+        if(inp && licenseState.licenseKey) inp.value = licenseState.licenseKey;
+      }, 50);
+    }
+  }
   if(s!=='keyinput'){
     // reset کامل وقتی از صفحه license خارج می‌شویم
     window._changingMode = false;
@@ -4618,19 +4636,31 @@ function checkKey(v){
 }
 function removeLicense(){
   clearKeyFromStorage();
-  applyServerLicense({valid:false, error:'REMOVED'}, null);
+  // Reset licenseState directly without going through validateLicenseFromServer
+  licenseState = {
+    valid: false, plan: 'free', expiresAt: null, daysRemaining: null,
+    userCount: null, licenseKey: null, deviceId: null, lastValidated: null,
+    buyerName: '', buyerEmail: '', activatedAt: null, _tok: null
+  };
   updateConnectionStatus(false);
   window._keyState='idle';
   window._keyValid=false;
   window._keyErrorCode='';
+  window._changingMode=false;
   showT('success', t('licenseRemoved')||'License removed. Switched to Free plan.');
   setTimeout(()=>show('app'), 1200);
 }
 
 function activateLicenseFinal(){
   window._changingMode = false;
+  if(licenseState.licenseKey) saveKeyToStorage(licenseState.licenseKey);
+  // Re-stamp lastValidated so isPlanPro() doesn't fail on staleness
+  if(licenseState.valid && licenseState.licenseKey) {
+    licenseState.lastValidated = Date.now();
+    const tok = btoa((licenseState.plan||'free') + (licenseState.licenseKey||'') + 'swak_v1_integrity').slice(0,16);
+    licenseState._tok = tok;
+  }
   if(isPlanPro()){
-    saveKeyToStorage(licenseState.licenseKey);
     show('app-pro');
     showT('success', t('toastProActivated'));
     // Show post-update changelog on first ever activation
@@ -4701,6 +4731,21 @@ async function simulateActivation(){
       saveKeyToStorage(v);
       window._keyState='success';
       window._keyErrorCode='';
+      // Fetch buyer info from get_license_info (non-blocking)
+      try {
+        const info = await callSupabaseRPC('get_license_info', { p_key: v });
+        if(info && info.found) {
+          licenseState.buyerName = info.buyer_name || '';
+          licenseState.buyerEmail = info.buyer_email || '';
+          licenseState.activatedAt = info.activated_at || null;
+        }
+      } catch(e2) { /* optional — non-blocking */ }
+      if(window._changingMode) {
+        showT('success', t('licenseChanged')||'License updated successfully.');
+      } else if(resp.firstActivation) {
+        // First time this device activates — show welcome
+        showT('success', t('firstActivation')||'License activated! Welcome to Swak Data Tools.');
+      }
       rf(false);
     } else {
       window._keyState='error';
@@ -5507,21 +5552,66 @@ async function _postRuntimeStartup() {
   startupStatus = 'checking';
   rf(false);
   try {
-    const resp = await validateLicenseFromServer(savedKey);
+    // First try get_license_info (no device check) to restore session
+    const info = await callSupabaseRPC('get_license_info', { p_key: savedKey });
     appStarting = false;
-    handleAuthResult(resp, savedKey, () => {
+    if(info && info.found && info.status === 'active' && info.days_remaining > 0) {
+      // Restore licenseState from get_license_info
+      const planMap = {'pro-individual':'pro','corp-team':'corp-5','corp-biz':'corp-10','corp-enterprise':'corp-unlimited'};
+      const mappedPlan = planMap[info.plan_type] || info.plan_type || 'free';
+      licenseState = {
+        valid: true,
+        plan: mappedPlan,
+        expiresAt: info.expires_at,
+        daysRemaining: info.days_remaining,
+        userCount: info.seat_count || 1,
+        licenseKey: savedKey,
+        deviceId: getDeviceFingerprint(),
+        lastValidated: Date.now(),
+        buyerName: info.buyer_name || '',
+        buyerEmail: info.buyer_email || '',
+        activatedAt: info.activated_at || null,
+        _tok: null,
+      };
+      licenseState._tok = btoa((mappedPlan) + (savedKey) + 'swak_v1_integrity').slice(0,16);
       startupStatus = 'ready';
       rf(false);
-      if (isPlanPro()) {
+      if(isPlanPro()) {
         show('app-pro');
         startLicensePolling(savedKey);
       } else {
         show('app');
       }
-    });
+    } else {
+      // License expired or not found — fall back to validate for proper error handling
+      const resp = await validateLicenseFromServer(savedKey);
+      handleAuthResult(resp, savedKey, () => {
+        startupStatus = 'ready';
+        rf(false);
+        if (isPlanPro()) {
+          show('app-pro');
+          startLicensePolling(savedKey);
+        } else {
+          show('app');
+        }
+      });
+    }
   } catch(e) {
     appStarting = false;
-    handleAuthResult(null, savedKey, null);
+    // Network error — try validate as fallback
+    try {
+      const resp = await validateLicenseFromServer(savedKey);
+      appStarting = false;
+      handleAuthResult(resp, savedKey, () => {
+        startupStatus = 'ready';
+        rf(false);
+        if (isPlanPro()) { show('app-pro'); startLicensePolling(savedKey); }
+        else { show('app'); }
+      });
+    } catch(e2) {
+      appStarting = false;
+      handleAuthResult(null, savedKey, null);
+    }
   }
 }
 
