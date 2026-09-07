@@ -4526,15 +4526,13 @@ function show(s){
   }
   if(s==='keyinput') {
     window._keyPrevScreen = currentScreen || 'onboarding';
-    // If license already valid, show Open App button immediately
-    if(isPlanPro() && licenseState.licenseKey) {
+    // If license already valid, show Open App immediately
+    if(licenseState.valid && licenseState.licenseKey && licenseState.daysRemaining > 0) {
       window._keyState = 'success';
       window._keyValid = true;
-      // Pre-fill key input with saved key
-      setTimeout(()=>{
-        const inp = document.getElementById('keyIn');
-        if(inp && licenseState.licenseKey) inp.value = licenseState.licenseKey;
-      }, 50);
+      window._keyErrorCode = '';
+      // Stamp lastValidated so isPlanPro() returns true
+      licenseState.lastValidated = Date.now();
     }
   }
   if(s!=='keyinput'){
@@ -5070,7 +5068,7 @@ async function runTool(tierId, toolId, isPro){
   // Pro license check
   if(actuallyPro) {
     const savedKey = licenseState.licenseKey ||
-      (()=>{ try{return localStorage.getItem('swak_license_key');}catch(e){return null;} })();
+      licenseState.licenseKey||'';
     _showRunStep(toolColor,'🔐',t('processing')||'Processing…',null);
     const authOk = await verifyLicenseBeforeRun(savedKey);
     if(!authOk) return;
@@ -5544,7 +5542,7 @@ async function recheckRuntime() {
 // Post-runtime startup (license check etc.)
 async function _postRuntimeStartup() {
   let savedKey = null;
-  try { savedKey = localStorage.getItem('swak_license_key'); } catch(e){}
+  savedKey = await getStoredKey();
   if (!savedKey) {
     show('onboarding');
     return;
@@ -5860,7 +5858,7 @@ async function startupFlow() {
 
   // ── STEP 2: Check for saved license ──
   let savedKey = null;
-  try { savedKey = localStorage.getItem('swak_license_key'); } catch(e){}
+  savedKey = await getStoredKey();
 
   if(!savedKey) {
     // No license key, first time user → onboarding, no server call
@@ -5923,10 +5921,47 @@ async function startupFlow() {
 
 // Save license key to localStorage after successful activation
 function saveKeyToStorage(key) {
+  // Layer 1: OfficeRuntime.storage (persists across sessions in Office Add-in)
+  try {
+    if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage) {
+      OfficeRuntime.storage.setItem('swak_license_key', key);
+    }
+  } catch(e){}
+  // Layer 2: localStorage (fallback for browser/non-Office context)
   try { localStorage.setItem('swak_license_key', key); } catch(e){}
+  // Layer 3: sessionStorage (extra fallback)
+  try { sessionStorage.setItem('swak_license_key', key); } catch(e){}
 }
 function clearKeyFromStorage() {
+  try {
+    if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage) {
+      OfficeRuntime.storage.removeItem('swak_license_key');
+    }
+  } catch(e){}
   try { localStorage.removeItem('swak_license_key'); } catch(e){}
+  try { sessionStorage.removeItem('swak_license_key'); } catch(e){}
+}
+
+// Multi-layer key retrieval
+async function getStoredKey() {
+  // Try OfficeRuntime first (most reliable in add-in)
+  try {
+    if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage) {
+      const key = await OfficeRuntime.storage.getItem('swak_license_key');
+      if(key) return key;
+    }
+  } catch(e){}
+  // Fallback to localStorage
+  try {
+    const key = localStorage.getItem('swak_license_key');
+    if(key) return key;
+  } catch(e){}
+  // Fallback to sessionStorage
+  try {
+    const key = sessionStorage.getItem('swak_license_key');
+    if(key) return key;
+  } catch(e){}
+  return null;
 }
 
 // init
