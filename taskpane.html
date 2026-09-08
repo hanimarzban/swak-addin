@@ -4633,20 +4633,24 @@ function checkKey(v){
   }
 }
 function removeLicense(){
+  // 1. Clear storage first
   clearKeyFromStorage();
-  // Reset licenseState directly without going through validateLicenseFromServer
+  // 2. Reset licenseState completely
   licenseState = {
     valid: false, plan: 'free', expiresAt: null, daysRemaining: null,
     userCount: null, licenseKey: null, deviceId: null, lastValidated: null,
     buyerName: '', buyerEmail: '', activatedAt: null, _tok: null
   };
-  updateConnectionStatus(false);
-  window._keyState='idle';
-  window._keyValid=false;
-  window._keyErrorCode='';
-  window._changingMode=false;
-  showT('success', t('licenseRemoved')||'License removed. Switched to Free plan.');
-  setTimeout(()=>show('app'), 1200);
+  // 3. Reset all window flags
+  window._keyState = 'idle';
+  window._keyValid = false;
+  window._keyErrorCode = '';
+  window._changingMode = false;
+  window._isChangingLicense = false;
+  // 4. Stop polling
+  try { if(window._licensePollingTimer) clearInterval(window._licensePollingTimer); } catch(e){}
+  // 5. Navigate to free app directly (skip updateConnectionStatus to avoid rf() loop)
+  show('app');
 }
 
 function activateLicenseFinal(){
@@ -5921,25 +5925,28 @@ async function startupFlow() {
 
 // Save license key to localStorage after successful activation
 function saveKeyToStorage(key) {
-  // Layer 1: OfficeRuntime.storage (persists across sessions in Office Add-in)
+  // Layer 1: OfficeRuntime.storage (best for Office Add-in, async — fire and forget)
   try {
     if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage) {
-      OfficeRuntime.storage.setItem('swak_license_key', key);
+      OfficeRuntime.storage.setItem('swak_license_key', key).catch(()=>{});
     }
   } catch(e){}
-  // Layer 2: localStorage (fallback for browser/non-Office context)
+  // Layer 2: localStorage
   try { localStorage.setItem('swak_license_key', key); } catch(e){}
-  // Layer 3: sessionStorage (extra fallback)
+  // Layer 3: sessionStorage
   try { sessionStorage.setItem('swak_license_key', key); } catch(e){}
+  // Layer 4: cookie (most persistent fallback)
+  try { document.cookie = 'swak_lk=' + encodeURIComponent(key) + ';max-age=31536000;path=/;SameSite=None;Secure'; } catch(e){}
 }
 function clearKeyFromStorage() {
   try {
     if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage) {
-      OfficeRuntime.storage.removeItem('swak_license_key');
+      OfficeRuntime.storage.removeItem('swak_license_key').catch(()=>{});
     }
   } catch(e){}
   try { localStorage.removeItem('swak_license_key'); } catch(e){}
   try { sessionStorage.removeItem('swak_license_key'); } catch(e){}
+  try { document.cookie = 'swak_lk=;max-age=0;path=/;SameSite=None;Secure'; } catch(e){}
 }
 
 // Multi-layer key retrieval
@@ -5948,18 +5955,26 @@ async function getStoredKey() {
   try {
     if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage) {
       const key = await OfficeRuntime.storage.getItem('swak_license_key');
-      if(key) return key;
+      if(key && key.startsWith('SWAK')) return key;
     }
   } catch(e){}
   // Fallback to localStorage
   try {
     const key = localStorage.getItem('swak_license_key');
-    if(key) return key;
+    if(key && key.startsWith('SWAK')) return key;
   } catch(e){}
   // Fallback to sessionStorage
   try {
     const key = sessionStorage.getItem('swak_license_key');
-    if(key) return key;
+    if(key && key.startsWith('SWAK')) return key;
+  } catch(e){}
+  // Fallback to cookie
+  try {
+    const m = document.cookie.match(/swak_lk=([^;]+)/);
+    if(m && m[1]) {
+      const key = decodeURIComponent(m[1]);
+      if(key.startsWith('SWAK')) return key;
+    }
   } catch(e){}
   return null;
 }
