@@ -390,19 +390,9 @@ let showDeviceConflict = false;
 
 // Post-update changelog (shown once after update install)
 const POST_UPDATE_CHANGELOG = {
-  version: '1.6.4',
-  date: '2026-07-12',
-  changes: [
-    '✓ Offline protection, app locks without internet',
-    '✓ Processing: license verified on every tool run',
-    '✓ Inbox message center (replaces What\'s New)',
-    '✓ Change License screen improved',
-    '✓ Offline Retry wall with MutationObserver guard',
-    '✓ Enterprise: 100 users @ $7.99/user/mo',
-    '✓ Terms of Use + Internet policy in key screen',
-    '✓ Data privacy notice in onboarding',
-    '✓ Font sizes improved (+1px where needed)',
-  ]
+  version: '',
+  date: '',
+  changes: []
 };
 
 function unreadCount(){ return INBOX_MESSAGES.filter(m=>!m.read).length; }
@@ -512,7 +502,7 @@ function handleAuthResult(resp, savedKey, afterSuccess) {
   // Case 2: License not found in DB
   if(code === 'NOT_FOUND' || code === 'INVALID_KEY') {
     updateConnectionStatus(true);
-    try { localStorage.removeItem('swak_license_key'); } catch(e){}
+    clearKeyFromStorage();
     showLockedModal({
       id: 'swak-invalid-license',
       icon: '🔑',
@@ -544,7 +534,7 @@ function handleAuthResult(resp, savedKey, afterSuccess) {
   // Case 4: License active on another device
   if(code === 'DEVICE_CONFLICT') {
     updateConnectionStatus(true);
-    try { localStorage.removeItem('swak_license_key'); } catch(e){}
+    clearKeyFromStorage();
     showLockedModal({
       id: 'swak-device-conflict',
       icon: '💻',
@@ -728,7 +718,7 @@ var I18N = {
     conflictTitle:'License Already Active', conflictMsg:'This license is already activated on another computer.', conflictDesc:'Each license can only be active on 1 device. To use Swak on this computer, please purchase a new license.', conflictRegistered:'Registered on', conflictThisDevice:'This device', conflictBlocked:'Blocked ✗', conflictBuyNew:'Buy New License', conflictUseFree:'Continue with Free Plan', conflictTryKey:'Try a different license key',
     startConnecting:'Connecting to server...', startChecking:'Checking license...', startReady:'Ready!',
     remaining:'remaining', changeLicense:'Change License',
-    days:'days',
+    days:'day(s)',
     checkingLicense:'Verifying license...', licenseExpired:'License expired. Switching to Free.', noInternet:'Cannot reach server. Check your internet connection.', licenseExpiredSoon:'License expires in {d} days', updateForced:'This update is required to continue.',
     updateRequired:'A required update is available. App locked until updated.', updateNow:'Update Now', later:'Later', whatsNew:'What\'s New', letsGo:'Let\'s Go! ', keyValidated:'License validated successfully!', keyPlan:'Plan: Pro Individual', keyExpiry:'Valid until: Dec 31, 2026', keyDevice:'Device: Registered ✓', keyFailed:'Activation failed', keyErrorDesc:'Invalid or expired key. Contact support.', keyErrorInvalid:'Key must start with SWAK-', validating:'Validating...', openApp:'Open App ',
     planIndividual:'Individual', planCorporate:'Corporate', period_monthly:'Monthly', period_quarterly:'3 Months', period_semi:'6 Months', period_annual:'Annual', getProIndividual:'Get Pro Individual', getTeam:'Get Team Plan', getBusiness:'Get Business Plan', getEnterprise:'Get Enterprise Plan',
@@ -781,7 +771,7 @@ var I18N = {
     keyError_500:'Our servers encountered an issue. Please try again in a few minutes.',
     inbox:'Inbox', inboxMessages:'message', inboxMessagesP:'messages', noMessages:'No messages', backToInbox:'Back to Inbox',
     secure:'🔒 Secure', instantActivation:'⚡ Instant activation',
-    daysLabel:'Days Remaining', expiresLabel:'Expires', deviceLabel:'Device',
+    daysLabel:'Days Remaining', expiresLabel:'Expires', deviceLabel:'Device', nameLabel:'Name',
     registeredLabel:'Registered ✓', expiresSoon:'⚠ License expires very soon! Renew ',
     expiringLabel:'License expiring soon, consider renewing.',
     needHelp:'Need help?', buyLicense:'Buy a license', contactSupport:'Contact support',
@@ -854,7 +844,7 @@ var I18N = {
     keyError_500:'خطای داخلی سرور. لطفاً بعداً دوباره امتحان کنید.',
     inbox:'صندوق پیام', inboxMessages:'پیام', inboxMessagesP:'پیام', noMessages:'پیامی وجود ندارد', backToInbox:'بازگشت به صندوق',
     secure:'🔒 امن', instantActivation:'⚡ فعال‌سازی فوری',
-    daysLabel:'روزهای باقی‌مانده', expiresLabel:'انقضا', deviceLabel:'دستگاه',
+    daysLabel:'روزهای باقی‌مانده', expiresLabel:'انقضا', deviceLabel:'دستگاه', nameLabel:'نام',
     registeredLabel:'ثبت شد ✓', expiresSoon:'⚠ لایسنس به‌زودی منقضی می‌شود! تمدید ',
     expiringLabel:'لایسنس در حال انقضاست, تمدید را در نظر بگیرید.',
     needHelp:'نیاز به کمک دارید؟', buyLicense:'خرید لایسنس', contactSupport:'تماس با پشتیبانی',
@@ -875,7 +865,7 @@ var I18N = {
     conflictTitle:'الترخيص مفعّل بالفعل', conflictMsg:'هذا الترخيص مفعّل على جهاز كمبيوتر آخر.', conflictDesc:'كل ترخيص يعمل على جهاز واحد فقط. لاستخدامه هنا، يرجى شراء ترخيص جديد.', conflictRegistered:'مسجل على', conflictThisDevice:'هذا الجهاز', conflictBlocked:'محظور ✗', conflictBuyNew:'شراء ترخيص جديد', conflictUseFree:'الاستمرار بالخطة المجانية', conflictTryKey:'تجربة مفتاح آخر',
     startConnecting:'جاري الاتصال بالخادم...', startChecking:'جاري التحقق من الترخيص...', startReady:'جاهز!',
     remaining:'متبقية', changeLicense:'تغيير الترخيص',
-    days:'أيام',
+    days:'يوم(أيام)',
     checkingLicense:'جاري التحقق من الترخيص...', licenseExpired:'انتهى الترخيص. تم التبديل إلى مجاني.', noInternet:'لا يمكن الوصول للخادم. تحقق من اتصالك بالإنترنت.', licenseExpiredSoon:'ينتهي الترخيص خلال {d} يوماً', updateForced:'هذا التحديث مطلوب للمتابعة.',
     updateRequired:'تحديث مطلوب متاح. التطبيق مقفل حتى التحديث.', updateNow:'تحديث الآن', later:'لاحقاً', whatsNew:'ما الجديد', letsGo:'هيا! ', keyValidated:'تم التحقق من الترخيص!', keyPlan:'الخطة: Pro فردي', keyExpiry:'صالح حتى: ٣١ ديسمبر ٢٠٢٦', keyDevice:'الجهاز: مسجل ✓', keyFailed:'فشل التفعيل', keyErrorDesc:'مفتاح غير صالح أو منتهي الصلاحية.', keyErrorInvalid:'يجب أن يبدأ المفتاح بـ SWAK-', validating:'جاري التحقق...', openApp:'فتح التطبيق ',
     planIndividual:'فردي', planCorporate:'للشركات', period_monthly:'شهري', period_quarterly:'٣ أشهر', period_semi:'٦ أشهر', period_annual:'سنوي', getProIndividual:'احصل على برو الفردي', getTeam:'احصل على خطة الفريق', getBusiness:'احصل على خطة الأعمال', getEnterprise:'احصل على خطة المؤسسة',
@@ -927,7 +917,7 @@ var I18N = {
     keyError_500:'خطأ داخلي في الخادم. حاول مجدداً لاحقاً.',
     inbox:'صندوق الرسائل', inboxMessages:'رسالة', inboxMessagesP:'رسائل', noMessages:'لا توجد رسائل', backToInbox:'العودة للصندوق',
     secure:'🔒 آمن', instantActivation:'⚡ تفعيل فوري',
-    daysLabel:'الأيام المتبقية', expiresLabel:'الانتهاء', deviceLabel:'الجهاز',
+    daysLabel:'الأيام المتبقية', expiresLabel:'الانتهاء', deviceLabel:'الجهاز', nameLabel:'الاسم',
     registeredLabel:'مسجل ✓', expiresSoon:'⚠ الترخيص ينتهي قريباً! تجديد ',
     needHelp:'تحتاج مساعدة؟', buyLicense:'شراء ترخيص', contactSupport:'التواصل مع الدعم',
     faqHelp:'الأسئلة الشائعة', deviceIndividual:'١ جهاز (فردي)',
@@ -946,7 +936,7 @@ var I18N = {
     conflictTitle:'Lizenz bereits aktiv', conflictMsg:'Diese Lizenz ist bereits auf einem anderen Computer aktiviert.', conflictDesc:'Jede Lizenz kann nur auf 1 Gerät aktiv sein. Bitte kaufen Sie eine neue Lizenz.', conflictRegistered:'Registriert auf', conflictThisDevice:'Dieses Gerät', conflictBlocked:'Gesperrt ✗', conflictBuyNew:'Neue Lizenz kaufen', conflictUseFree:'Mit Free-Plan fortfahren', conflictTryKey:'Anderen Lizenzschlüssel versuchen',
     startConnecting:'Verbindung zum Server...', startChecking:'Lizenz wird geprüft...', startReady:'Bereit!',
     remaining:'verbleibend', changeLicense:'Lizenz ändern',
-    days:'Tage',
+    days:'Tag(e)',
     checkingLicense:'Lizenz wird geprüft...', licenseExpired:'Lizenz abgelaufen. Wechsel zu Kostenlos.', noInternet:'Server nicht erreichbar. Bitte Internetverbindung prüfen.', licenseExpiredSoon:'Lizenz läuft in {d} Tagen ab', updateForced:'Dieses Update ist erforderlich.',
     updateRequired:'Ein erforderliches Update ist verfügbar. App gesperrt bis zum Update.', updateNow:'Jetzt aktualisieren', later:'Später', whatsNew:'Was ist neu', letsGo:'Los geht\'s! ', keyValidated:'Lizenz erfolgreich validiert!', keyPlan:'Plan: Pro Einzelperson', keyExpiry:'Gültig bis: 31. Dez. 2026', keyDevice:'Gerät: Registriert ✓', keyFailed:'Aktivierung fehlgeschlagen', keyErrorDesc:'Ungültiger oder abgelaufener Schlüssel.', keyErrorInvalid:'Schlüssel muss mit SWAK- beginnen', validating:'Wird überprüft...', openApp:'App öffnen ',
     planIndividual:'Einzelperson', planCorporate:'Unternehmen', period_monthly:'Monatlich', period_quarterly:'3 Monate', period_semi:'6 Monate', period_annual:'Jährlich', getProIndividual:'Pro Einzelperson holen', getTeam:'Team-Plan holen', getBusiness:'Business-Plan holen', getEnterprise:'Enterprise-Plan holen',
@@ -976,7 +966,7 @@ var I18N = {
     getMonthly:'Pro Monatlich', get3mo:'3-Monats-Abo',
     inbox:'Posteingang', inboxMessages:'Nachricht', inboxMessagesP:'Nachrichten', noMessages:'Keine Nachrichten', backToInbox:'Zurück zum Posteingang',
     secure:'🔒 Sicher', instantActivation:'⚡ Sofortaktivierung',
-    daysLabel:'Verbleibende Tage', expiresLabel:'Läuft ab', deviceLabel:'Gerät',
+    daysLabel:'Verbleibende Tage', expiresLabel:'Läuft ab', deviceLabel:'Gerät', nameLabel:'Name',
     registeredLabel:'Registriert ✓', expiresSoon:'⚠ Lizenz läuft bald ab! Verlängern ',
     expiringLabel:'Lizenz läuft bald ab, Verlängerung empfohlen.',
     needHelp:'Hilfe benötigt?', buyLicense:'Lizenz kaufen', contactSupport:'Support kontaktieren',
@@ -1008,7 +998,7 @@ var I18N = {
     conflictTitle:'Licence déjà active', conflictMsg:'Cette licence est déjà activée sur un autre ordinateur.', conflictDesc:'Chaque licence ne peut être active que sur 1 appareil. Veuillez acheter une nouvelle licence.', conflictRegistered:'Enregistré sur', conflictThisDevice:'Cet appareil', conflictBlocked:'Bloqué ✗', conflictBuyNew:'Acheter une nouvelle licence', conflictUseFree:'Continuer avec le plan gratuit', conflictTryKey:'Essayer une autre clé',
     startConnecting:'Connexion au serveur...', startChecking:'Vérification de la licence...', startReady:'Prêt !',
     remaining:'restants', changeLicense:'Changer la licence',
-    days:'jours',
+    days:'jour(s)',
     checkingLicense:'Vérification de la licence...', licenseExpired:'Licence expirée. Passage en Gratuit.', noInternet:'Impossible de joindre le serveur. Vérifiez votre connexion.', licenseExpiredSoon:'Licence expire dans {d} jours', updateForced:'Cette mise à jour est requise.',
     updateRequired:'Une mise à jour requise est disponible. App bloquée jusqu\'à la mise à jour.', updateNow:'Mettre à jour', later:'Plus tard', whatsNew:'Nouveautés', letsGo:'C\'est parti ! ', keyValidated:'Licence validée avec succès !', keyPlan:'Plan : Pro Individuel', keyExpiry:'Valide jusqu\'au : 31 déc. 2026', keyDevice:'Appareil : Enregistré ✓', keyFailed:'Échec de l\'activation', keyErrorDesc:'Clé invalide ou expirée.', keyErrorInvalid:'La clé doit commencer par SWAK-', validating:'Vérification...', openApp:'Ouvrir l\'app ',
     planIndividual:'Individuel', planCorporate:'Entreprise', period_monthly:'Mensuel', period_quarterly:'3 Mois', period_semi:'6 Mois', period_annual:'Annuel', getProIndividual:'Obtenir Pro Individuel', getTeam:'Obtenir Plan Équipe', getBusiness:'Obtenir Plan Business', getEnterprise:'Obtenir Plan Entreprise',
@@ -1038,7 +1028,7 @@ var I18N = {
     getMonthly:'Abonnement mensuel', get3mo:'Abonnement 3 mois',
     inbox:'Boîte de réception', inboxMessages:'message', inboxMessagesP:'messages', noMessages:'Aucun message', backToInbox:'Retour à la boîte',
     secure:'🔒 Sécurisé', instantActivation:'⚡ Activation instantanée',
-    daysLabel:'Jours restants', expiresLabel:'Expire le', deviceLabel:'Appareil',
+    daysLabel:'Jours restants', expiresLabel:'Expire le', deviceLabel:'Appareil', nameLabel:'Nom',
     registeredLabel:'Enregistré ✓', expiresSoon:'⚠ Licence expire bientôt ! Renouveler ',
     expiringLabel:'Licence bientôt expirée, pensez à renouveler.',
     needHelp:'Besoin d\'aide ?', buyLicense:'Acheter une licence', contactSupport:'Contacter le support',
@@ -1070,7 +1060,7 @@ var I18N = {
     conflictTitle:'Licencia ya activa', conflictMsg:'Esta licencia ya está activada en otro ordenador.', conflictDesc:'Cada licencia solo puede estar activa en 1 dispositivo. Por favor, compre una nueva licencia.', conflictRegistered:'Registrado en', conflictThisDevice:'Este dispositivo', conflictBlocked:'Bloqueado ✗', conflictBuyNew:'Comprar nueva licencia', conflictUseFree:'Continuar con plan gratuito', conflictTryKey:'Probar otra clave',
     startConnecting:'Conectando al servidor...', startChecking:'Verificando licencia...', startReady:'¡Listo!',
     remaining:'restantes', changeLicense:'Cambiar licencia',
-    days:'días',
+    days:'día(s)',
     checkingLicense:'Verificando licencia...', licenseExpired:'Licencia expirada. Cambiando a Gratis.', noInternet:'No se puede contactar el servidor. Verifica tu conexión.', licenseExpiredSoon:'La licencia expira en {d} días', updateForced:'Esta actualización es obligatoria.',
     updateRequired:'Actualización requerida disponible. App bloqueada hasta actualizar.', updateNow:'Actualizar ahora', later:'Más tarde', whatsNew:'Novedades', letsGo:'¡Vamos! ', keyValidated:'¡Licencia validada con éxito!', keyPlan:'Plan: Pro Individual', keyExpiry:'Válido hasta: 31 dic. 2026', keyDevice:'Dispositivo: Registrado ✓', keyFailed:'Activación fallida', keyErrorDesc:'Clave inválida o expirada.', keyErrorInvalid:'La clave debe comenzar con SWAK-', validating:'Verificando...', openApp:'Abrir app ',
     planIndividual:'Individual', planCorporate:'Corporativo', period_monthly:'Mensual', period_quarterly:'3 Meses', period_semi:'6 Meses', period_annual:'Anual', getProIndividual:'Obtener Pro Individual', getTeam:'Obtener Plan Equipo', getBusiness:'Obtener Plan Negocio', getEnterprise:'Obtener Plan Empresa',
@@ -1100,7 +1090,7 @@ var I18N = {
     getMonthly:'Pro Mensual', get3mo:'Suscripción 3 meses',
     inbox:'Bandeja de entrada', inboxMessages:'mensaje', inboxMessagesP:'mensajes', noMessages:'Sin mensajes', backToInbox:'Volver a la bandeja',
     secure:'🔒 Seguro', instantActivation:'⚡ Activación instantánea',
-    daysLabel:'Días restantes', expiresLabel:'Vence el', deviceLabel:'Dispositivo',
+    daysLabel:'Días restantes', expiresLabel:'Vence el', deviceLabel:'Dispositivo', nameLabel:'Nombre',
     registeredLabel:'Registrado ✓', expiresSoon:'⚠ ¡La licencia vence pronto! Renovar ',
     expiringLabel:'La licencia vence pronto, considera renovar.',
     needHelp:'¿Necesitas ayuda?', buyLicense:'Comprar licencia', contactSupport:'Contactar soporte',
@@ -1162,7 +1152,7 @@ var I18N = {
     getMonthly:'月度订阅', get3mo:'季度订阅',
     inbox:'收件箱', inboxMessages:'条消息', inboxMessagesP:'条消息', noMessages:'没有消息', backToInbox:'返回收件箱',
     secure:'🔒 安全', instantActivation:'⚡ 即时激活',
-    daysLabel:'剩余天数', expiresLabel:'到期日', deviceLabel:'设备',
+    daysLabel:'剩余天数', expiresLabel:'到期日', deviceLabel:'设备', nameLabel:'姓名',
     registeredLabel:'已注册 ✓', expiresSoon:'⚠ 许可证即将过期！续订 ',
     expiringLabel:'许可证即将过期, 请考虑续订。',
     needHelp:'需要帮助？', buyLicense:'购买许可证', contactSupport:'联系支持',
@@ -1194,7 +1184,7 @@ var I18N = {
     conflictTitle:'Лицензия уже активирована', conflictMsg:'Эта лицензия уже активирована на другом компьютере.', conflictDesc:'Каждая лицензия активна только на 1 устройстве. Пожалуйста, купите новую лицензию.', conflictRegistered:'Зарегистрирована на', conflictThisDevice:'Этот компьютер', conflictBlocked:'Заблокировано ✗', conflictBuyNew:'Купить новую лицензию', conflictUseFree:'Продолжить с бесплатным планом', conflictTryKey:'Попробовать другой ключ',
     startConnecting:'Подключение к серверу...', startChecking:'Проверка лицензии...', startReady:'Готово!',
     remaining:'осталось', changeLicense:'Сменить лицензию',
-    days:'дней',
+    days:'дн.',
     checkingLicense:'Проверка лицензии...', licenseExpired:'Лицензия истекла. Переход на Бесплатный.', noInternet:'Не удаётся связаться с сервером. Проверьте интернет.', licenseExpiredSoon:'Лицензия истекает через {d} дней', updateForced:'Это обновление обязательно для продолжения.',
     updateRequired:'Доступно обязательное обновление. Приложение заблокировано до обновления.', updateNow:'Обновить сейчас', later:'Позже', whatsNew:'Что нового', letsGo:'Поехали! ', keyValidated:'Лицензия успешно подтверждена!', keyPlan:'Plan: Pro Индивидуальный', keyExpiry:'Действителен до: 31 дек. 2026', keyDevice:'Устройство: Зарегистрировано ✓', keyFailed:'Активация не удалась', keyErrorDesc:'Недействительный или истёкший ключ.', keyErrorInvalid:'Ключ должен начинаться с SWAK-', validating:'Проверка...', openApp:'Открыть приложение ',
     planIndividual:'Индивидуальный', planCorporate:'Корпоративный', period_monthly:'Ежемесячно', period_quarterly:'3 Месяца', period_semi:'6 Месяцев', period_annual:'Ежегодно', getProIndividual:'Купить Pro Индивидуальный', getTeam:'Купить Командный план', getBusiness:'Купить Бизнес-план', getEnterprise:'Купить Корпоративный план',
@@ -1224,7 +1214,7 @@ var I18N = {
     getMonthly:'Ежемесячная подписка', get3mo:'3-месячная подписка',
     inbox:'Входящие', inboxMessages:'сообщение', inboxMessagesP:'сообщений', noMessages:'Нет сообщений', backToInbox:'Назад во входящие',
     secure:'🔒 Безопасно', instantActivation:'⚡ Мгновенная активация',
-    daysLabel:'Осталось дней', expiresLabel:'Истекает', deviceLabel:'Устройство',
+    daysLabel:'Осталось дней', expiresLabel:'Истекает', deviceLabel:'Устройство', nameLabel:'Имя',
     registeredLabel:'Зарегистрировано ✓', expiresSoon:'⚠ Лицензия скоро истекает! Продлить ',
     expiringLabel:'Лицензия скоро истечёт, рекомендуем продлить.',
     needHelp:'Нужна помощь?', buyLicense:'Купить лицензию', contactSupport:'Связаться с поддержкой',
@@ -1286,7 +1276,7 @@ var I18N = {
     getMonthly:'मासिक सदस्यता', get3mo:'3 माह सदस्यता',
     inbox:'इनबॉक्स', inboxMessages:'संदेश', inboxMessagesP:'संदेश', noMessages:'कोई संदेश नहीं', backToInbox:'इनबॉक्स पर वापस',
     secure:'🔒 सुरक्षित', instantActivation:'⚡ तत्काल सक्रियण',
-    daysLabel:'शेष दिन', expiresLabel:'समाप्ति', deviceLabel:'डिवाइस',
+    daysLabel:'शेष दिन', expiresLabel:'समाप्ति', deviceLabel:'डिवाइस', nameLabel:'नाम',
     registeredLabel:'पंजीकृत ✓', expiresSoon:'⚠ लाइसेंस जल्द समाप्त होगा! नवीनीकरण ',
     expiringLabel:'लाइसेंस जल्द समाप्त होगा, नवीनीकरण पर विचार करें।',
     needHelp:'मदद चाहिए?', buyLicense:'लाइसेंस खरीदें', contactSupport:'सहायता से संपर्क करें',
@@ -3461,9 +3451,9 @@ function renderKeyInput(){
         <div style="font-size:10px;color:#4ADE80;font-weight:700;margin-bottom:5px">✓ ${t('currentLicense')||'Active License'}</div>
         <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:10px">
           <span style="color:${C().text4}">${t('plan')||'Plan'}</span>
-          <span style="color:${C().text2};font-weight:600">${licenseState.plan==='corp-5'?'Team (5)':licenseState.plan==='corp-10'?'Business (10)':licenseState.plan==='corp-unlimited'?'Enterprise':'Pro Individual'}</span>
+          <span style="color:${C().text2};font-weight:600">${licenseState.plan==='corp-5'?(t('planTeam')||'Team')+' (5)':licenseState.plan==='corp-10'?(t('planBusiness')||'Business')+' (10)':licenseState.plan==='corp-unlimited'?t('planEnterprise')||'Enterprise':t('planIndividual')||'Pro Individual'}</span>
           <span style="color:${C().text4}">${t('days')||'Days'}</span>
-          <span style="color:${getDaysColor()};font-weight:700">${toLocalDigits(licenseState.daysRemaining||'—')} ${t('days')||'days'} ${t('remaining')||'remaining'}</span>
+          <span style="color:${getDaysColor()};font-weight:700">${toLocalDigits(licenseState.daysRemaining||'—')} ${t('days')||'day(s)'}</span>
         </div>
         <button onclick="removeLicense()" style="width:100%;margin-top:8px;padding:5px;background:${isDark?'#2A0F0F':'#FFEBE9'};border:1px solid #F8711844;border-radius:5px;color:#F87171;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit">
           🗑 ${t('removeLicense')||'Remove License'}
@@ -3497,14 +3487,14 @@ function renderKeyInput(){
         <div style="font-size:11px;font-weight:700;color:#4ADE80;margin-bottom:6px">✓ ${t('keyValidated')||'License validated!'}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
           <div style="font-size:10px;color:${C().text4}">${t('plan')||'Plan'}</div>
-          <div style="font-size:10px;font-weight:600;color:${C().text2}">${licenseState.plan==='corp-5'?'Team (5)':licenseState.plan==='corp-10'?'Business (10)':licenseState.plan==='corp-unlimited'?'Enterprise':'Pro Individual'}</div>
-          ${licenseState.buyerName?`<div style="font-size:10px;color:${C().text4}">Name</div><div style="font-size:10px;color:${C().text2}">${licenseState.buyerName}</div>`:''}
+          <div style="font-size:10px;font-weight:600;color:${C().text2}">${licenseState.plan==='corp-5'?(t('planTeam')||'Team')+' (5)':licenseState.plan==='corp-10'?(t('planBusiness')||'Business')+' (10)':licenseState.plan==='corp-unlimited'?t('planEnterprise')||'Enterprise':t('planIndividual')||'Pro Individual'}</div>
+          ${licenseState.buyerName?`<div style="font-size:10px;color:${C().text4}">${t('nameLabel')||'Name'}</div><div style="font-size:10px;color:${C().text2}">${licenseState.buyerName}</div>`:''}
           <div style="font-size:10px;color:${C().text4}">${t('daysLabel')||'Days Remaining'}</div>
-          <div style="font-size:10px;font-weight:700;color:${getDaysColor()}">${licenseState.daysRemaining} ${t('days')||'days'} ${licenseState.daysRemaining<=7?'⚠':licenseState.daysRemaining<=3?'🔴':''}</div>
+          <div style="font-size:10px;font-weight:700;color:${getDaysColor()}">${toLocalDigits(licenseState.daysRemaining)} ${t('days')||'day(s)'} ${licenseState.daysRemaining<=7?'⚠':licenseState.daysRemaining<=3?'🔴':''}</div>
           <div style="font-size:10px;color:${C().text4}">${t('expiresLabel')||'Expires'}</div>
           <div style="font-size:10px;color:${C().text2}">${licenseState.expiresAt?new Date(licenseState.expiresAt).toLocaleDateString():'-'}</div>
-          <div style="font-size:10px;color:${C().text4}">Device</div>
-          <div style="font-size:10px;color:${C().text2}">Registered ✓</div>
+          <div style="font-size:10px;color:${C().text4}">${t('deviceLabel')||'Device'}</div>
+          <div style="font-size:10px;color:${C().text2}">${t('registeredLabel')||'Registered ✓'}</div>
         </div>
         ${licenseState.daysRemaining<=14?`<div style="margin-top:6px;padding:5px 8px;background:${licenseState.daysRemaining<=3?isDark?'#2A0F0F':'#FFEBE9':isDark?'#1C1700':'#FFF8C5'};border-radius:4px;font-size:10px;color:${licenseState.daysRemaining<=3?'#F87171':'#F59E0B'};font-weight:600">
           ⚠ ${licenseState.daysRemaining<=3?t('expiresSoon')||'License expires very soon! Renew ':t('expiringLabel')||'License expiring soon, consider renewing.'} ${licenseState.daysRemaining<=3?'':'<a href="https://swaksoft.com/renew" style="color:inherit">Renew </a>'}
@@ -3842,7 +3832,7 @@ function renderApp(isPro){
     </div>`:`
     <div style="padding:6px 14px;display:flex;align-items:center;gap:8px">
       <div style="flex:1;font-size:10px;color:${C().text4}">
-        <span style="color:${getDaysColor()};font-weight:700">${licenseState.daysRemaining||'—'} ${t('days')||'days'}</span> ${t('remaining')||'remaining'}
+        <span style="color:${getDaysColor()};font-weight:700">${toLocalDigits(licenseState.daysRemaining||'—')} ${t('days')||'day(s)'}</span>
       </div>
       <button onclick="show('keyinput')" style="padding:4px 8px;background:${C().bg2};border:1px solid ${C().border};border-radius:4px;color:${C().text4};font-size:10px;cursor:pointer;font-family:inherit">${t('changeLicense')||'Change License'}</button>
     </div>`}
@@ -4580,7 +4570,7 @@ function toggleThemeInline(){
   }, 60000);
 })();
 function changeLang(l){lang=l;rf(currentScreen==='app-pro');}
-function togglePlan(){if(isPlanPro())show(currentScreen==='app-pro'?'app':'app-pro');else show('keyinput');}
+function togglePlan(){show('keyinput');}
 function toggleTier(id,isPro){activeTier=activeTier===id?null:id;rf(isPro);}
 
 function handleQ(q,isPro){
@@ -4665,12 +4655,7 @@ function activateLicenseFinal(){
   if(isPlanPro()){
     show('app-pro');
     showT('success', t('toastProActivated'));
-    // Show post-update changelog on first ever activation
-    const lastSeen = (() => { try { return localStorage.getItem('swak_last_version'); } catch(e){ return null; } })();
-    if(lastSeen !== APP_VERSION) {
-      showPostUpdateChangelog = true;
-      try { localStorage.setItem('swak_last_version', APP_VERSION); } catch(e){}
-    }
+    // Post-update changelog disabled — fill POST_UPDATE_CHANGELOG when ready to show
   } else {
     show('app');
   }
@@ -5923,60 +5908,83 @@ async function startupFlow() {
   if(el) el.textContent = totalOps();
 }
 
-// Save license key to localStorage after successful activation
-function saveKeyToStorage(key) {
-  // Layer 1: OfficeRuntime.storage (best for Office Add-in, async — fire and forget)
+// ── License Storage — roamingSettings first ──────────────────────────────────
+const _SKEY = 'swak_license_key';
+function _roaming() {
   try {
-    if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage) {
-      OfficeRuntime.storage.setItem('swak_license_key', key).catch(()=>{});
-    }
+    if(typeof Office !== 'undefined' && Office.context && Office.context.roamingSettings)
+      return Office.context.roamingSettings;
   } catch(e){}
-  // Layer 2: localStorage
-  try { localStorage.setItem('swak_license_key', key); } catch(e){}
-  // Layer 3: sessionStorage
-  try { sessionStorage.setItem('swak_license_key', key); } catch(e){}
-  // Layer 4: cookie (most persistent fallback)
-  try { document.cookie = 'swak_lk=' + encodeURIComponent(key) + ';max-age=31536000;path=/;SameSite=None;Secure'; } catch(e){}
+  return null;
+}
+function saveKeyToStorage(key) {
+  const rs = _roaming();
+  if(rs) {
+    try {
+      rs.set(_SKEY, key);
+      rs.saveAsync(function(r){
+        if(r.status !== Office.AsyncResultStatus.Succeeded)
+          console.warn('[SWAK] roamingSettings saveAsync failed:', r.error && r.error.message);
+      });
+    } catch(e){ console.warn('[SWAK] roamingSettings set error:', e); }
+  }
+  try { localStorage.setItem(_SKEY, key); } catch(e){}
+  try { sessionStorage.setItem(_SKEY, key); } catch(e){}
+  try {
+    const exp = new Date(Date.now() + 365*24*3600*1000).toUTCString();
+    document.cookie = 'swak_lk=' + encodeURIComponent(key) + ';expires=' + exp + ';path=/;SameSite=None;Secure';
+  } catch(e){}
+  try {
+    if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage)
+      OfficeRuntime.storage.setItem(_SKEY, key).catch(()=>{});
+  } catch(e){}
 }
 function clearKeyFromStorage() {
+  const rs = _roaming();
+  if(rs) { try { rs.remove(_SKEY); rs.saveAsync(()=>{}); } catch(e){} }
+  try { localStorage.removeItem(_SKEY); } catch(e){}
+  try { sessionStorage.removeItem(_SKEY); } catch(e){}
+  try { document.cookie = 'swak_lk=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=None;Secure'; } catch(e){}
   try {
-    if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage) {
-      OfficeRuntime.storage.removeItem('swak_license_key').catch(()=>{});
-    }
+    if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage)
+      OfficeRuntime.storage.removeItem(_SKEY).catch(()=>{});
   } catch(e){}
-  try { localStorage.removeItem('swak_license_key'); } catch(e){}
-  try { sessionStorage.removeItem('swak_license_key'); } catch(e){}
-  try { document.cookie = 'swak_lk=;max-age=0;path=/;SameSite=None;Secure'; } catch(e){}
 }
-
-// Multi-layer key retrieval
 async function getStoredKey() {
-  // Try OfficeRuntime first (most reliable in add-in)
-  try {
-    if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage) {
-      const key = await OfficeRuntime.storage.getItem('swak_license_key');
+  const rs = _roaming();
+  if(rs) {
+    try {
+      const key = rs.get(_SKEY);
       if(key && key.startsWith('SWAK')) return key;
-    }
-  } catch(e){}
-  // Fallback to localStorage
+    } catch(e){}
+  }
   try {
-    const key = localStorage.getItem('swak_license_key');
-    if(key && key.startsWith('SWAK')) return key;
+    const key = localStorage.getItem(_SKEY);
+    if(key && key.startsWith('SWAK')) { _syncToRoaming(key); return key; }
   } catch(e){}
-  // Fallback to sessionStorage
   try {
-    const key = sessionStorage.getItem('swak_license_key');
-    if(key && key.startsWith('SWAK')) return key;
+    const key = sessionStorage.getItem(_SKEY);
+    if(key && key.startsWith('SWAK')) { _syncToRoaming(key); return key; }
   } catch(e){}
-  // Fallback to cookie
   try {
-    const m = document.cookie.match(/swak_lk=([^;]+)/);
+    const m = document.cookie.match(/(?:^|;\s*)swak_lk=([^;]+)/);
     if(m && m[1]) {
       const key = decodeURIComponent(m[1]);
-      if(key.startsWith('SWAK')) return key;
+      if(key.startsWith('SWAK')) { _syncToRoaming(key); return key; }
+    }
+  } catch(e){}
+  try {
+    if(typeof OfficeRuntime !== 'undefined' && OfficeRuntime.storage) {
+      const key = await OfficeRuntime.storage.getItem(_SKEY);
+      if(key && key.startsWith('SWAK')) { _syncToRoaming(key); return key; }
     }
   } catch(e){}
   return null;
+}
+function _syncToRoaming(key) {
+  const rs = _roaming();
+  if(!rs) return;
+  try { rs.set(_SKEY, key); rs.saveAsync(()=>{}); } catch(e){}
 }
 
 // init
