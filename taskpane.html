@@ -269,6 +269,16 @@ function applyServerLicense(serverResp, key) {
   serverResp.lastValidated = Date.now();
   const tok = btoa((serverResp.plan||'free') + (key||'') + 'swak_v1_integrity').slice(0,16);
   serverResp._tok = tok;
+  if(serverResp.valid) {
+    try {
+      const snap = {valid:serverResp.valid,plan:serverResp.plan,expiresAt:serverResp.expiresAt,
+        daysRemaining:serverResp.daysRemaining,userCount:serverResp.userCount,
+        licenseKey:key,deviceId:serverResp.deviceId,buyerName:serverResp.buyerName};
+      localStorage.setItem('swak_license_state', JSON.stringify(snap));
+    } catch(e){}
+  } else {
+    try { localStorage.removeItem('swak_license_state'); } catch(e){}
+  }
   // Only this function can update licenseState
   if(serverResp.errorCode === 'INVALID_DEVICE') {
     showDeviceTamperingModal();
@@ -389,11 +399,7 @@ let showPostUpdateChangelog = false;
 let showDeviceConflict = false;
 
 // Post-update changelog (shown once after update install)
-const POST_UPDATE_CHANGELOG = {
-  version: '',
-  date: '',
-  changes: []
-};
+const POST_UPDATE_CHANGELOG = { version: '', date: '', changes: [] };
 
 function unreadCount(){ return INBOX_MESSAGES.filter(m=>!m.read).length; }
 let appStarting = true; // show connecting screen on first load
@@ -522,7 +528,7 @@ function handleAuthResult(resp, savedKey, afterSuccess) {
       id: 'swak-expired',
       icon: '⏰',
       title: t('expiredTitle')||'License Expired',
-      message: t('expiredMsg')||'Your license has expired. Purchase a new license to continue using Swak Pro.',
+      message: t('expiredMsg')||'Your license has expired. Purchase a new license to continue using Swak Data Tools Pro.',
       color: '#F59E0B',
       btn1Text: '🛒 '+(t('buyLicense')||'Buy New License'),
       btn1Action: "show('onboarding')",
@@ -535,16 +541,8 @@ function handleAuthResult(resp, savedKey, afterSuccess) {
   if(code === 'DEVICE_CONFLICT') {
     updateConnectionStatus(true);
     clearKeyFromStorage();
-    showLockedModal({
-      id: 'swak-device-conflict',
-      icon: '💻',
-      title: t('deviceConflict')||'License On Another Device',
-      message: t('deviceConflictMsg')||'This license is already activated on another computer. Please use your original device or contact support.',
-      color: '#F59E0B',
-      btn1Text: t('backToOnboarding')||'OK',
-      btn1Action: "show('onboarding')",
-      btn2Text: '💬 '+(t('contactSupport')||'Contact Support'),
-    });
+    showDeviceConflict = true;
+    show('keyinput');
     return;
   }
 
@@ -632,7 +630,7 @@ async function verifyLicenseBeforeRun(savedKey) {
       id: 'swak-offline-wall',
       icon: '📡',
       title: t('offlineTitle')||'No Internet Connection',
-      message: t('offlineDesc')||'Swak requires internet to verify your license.',
+      message: t('offlineDesc')||'Swak Data Tools requires internet to verify your license.',
       color: '#6B7280',
       btn1Text: '🔄 '+(t('retryConnection')||'Retry'),
       btn1Action: 'startupFlow()',
@@ -712,10 +710,10 @@ var I18N = {
   en: {
     appTitle:'Swak', appSubtitle:'DATA TOOLS', instant:'Instant',
     popular:'POPULAR', forever:'One-time purchase', trustedBy:'Trusted by data professionals', dataLocal:'Your Data Stays Local', dataLocalDesc:'All processing runs locally on your computer. We never transmit or store your data. Only license validation connects to our server.',
-    offlineTitle:'No Internet Connection', offlineDesc:'Swak requires internet to verify your license. Please check your connection.', offlineNote:'Your data is never transmitted, only your license is verified online.', retryConnection:'Retry Connection', stillOffline:'Still offline. Check your internet connection.',
+    offlineTitle:'No Internet Connection', offlineDesc:'Swak Data Tools requires internet to verify your license. Please check your connection.', offlineNote:'Your data is never transmitted, only your license is verified online.', retryConnection:'Retry Connection', stillOffline:'Still offline. Check your internet connection.',
     currentLicense:'Current Active License', plan:'Plan', keyLabel:'Key', removeLicense:'Remove License', enterNewKey:'Enter New Key', changeKey:'Change License Key:', saveNewKey:'Save New License', licenseRemoved:'License removed. Switched to Free.',
     readingData:'Reading Excel data...', processingData:'Processing...', writingResult:'Writing to Excel...',
-    conflictTitle:'License Already Active', conflictMsg:'This license is already activated on another computer.', conflictDesc:'Each license can only be active on 1 device. To use Swak on this computer, please purchase a new license.', conflictRegistered:'Registered on', conflictThisDevice:'This device', conflictBlocked:'Blocked ✗', conflictBuyNew:'Buy New License', conflictUseFree:'Continue with Free Plan', conflictTryKey:'Try a different license key',
+    conflictTitle:'License Already Active', conflictMsg:'This license is already activated on another computer.', deviceConflict:'License Already Active', deviceConflictMsg:'This license is already activated on another computer. Use your original device or purchase a new license.', conflictDesc:'Each license can only be active on 1 device. To use Swak Data Tools on this computer, please purchase a new license.', conflictRegistered:'Registered on', conflictThisDevice:'This device', conflictBlocked:'Blocked ✗', conflictBuyNew:'Buy New License', conflictUseFree:'Continue with Free Plan', conflictTryKey:'Try a different license key',
     startConnecting:'Connecting to server...', startChecking:'Checking license...', startReady:'Ready!',
     remaining:'remaining', changeLicense:'Change License',
     days:'day(s)',
@@ -746,7 +744,7 @@ var I18N = {
     tools:'tools', ops:'ops',
     configParams:'Configure parameters',
     getMonthly:'Get Pro Monthly', get3mo:'Get 3-Month',
-    timeoutTitle:'Connection Timeout', timeoutMsg:'Could not connect to Swak servers. Please check your connection and try again.',
+    timeoutTitle:'Connection Timeout', timeoutMsg:'Could not connect to Swak Data Tools servers. Please check your connection and try again.',
     startConnecting:'Loading...', startChecking:'Verifying license...', startReady:'Ready!',
     deviceTamperTitle:'Security Alert', deviceTamperMsg:'Security codes tampered or hardware ID not found. The add-in is locked.',
     keyErrorTitle:'Invalid License Key', expiredTitle:'License Expired', revokedTitle:'License Revoked',
@@ -756,16 +754,16 @@ var I18N = {
     revokedMsg:'This license has been revoked. Contact support.',
     suspendedMsg:'This license is temporarily suspended. Contact support.',
     rateLimitMsg:'Too many failed attempts. Wait 1 hour before trying again.',
-    renewNow:'Renew Now', networkError:'Unable to connect to Swak servers. Please try again.', processing:'Processing...', enterLicense:'Enter License Key', backToOnboarding:'Back',
+    renewNow:'Renew Now', networkError:'Unable to connect to Swak Data Tools servers. Please try again.', processing:'Processing...', enterLicense:'Enter License Key', backToOnboarding:'Back',
     keyError_INVALID_KEY:'Invalid key.',
     keyError_LICENSE_EXPIRED:'Your license has expired.',
     keyError_DEVICE_CONFLICT:'This license is active on another device.',
     keyError_RATE_LIMITED:'Too many attempts. Try again in 1 hour.',
     keyError_LICENSE_REVOKED:'This license has been revoked.',
     keyError_LICENSE_SUSPENDED:'This license is suspended.',
-    keyError_SERVER_ERROR:'Unable to reach Swak servers. Please check your internet and try again.',
+    keyError_SERVER_ERROR:'Unable to reach Swak Data Tools servers. Please check your internet and try again.',
     keyError_NETWORK_ERROR:'Unable to connect. Please check your internet connection and try again.',
-    keyError_TIMEOUT:'Request timed out. Swak servers did not respond. Please try again.',
+    keyError_TIMEOUT:'Request timed out. Swak Data Tools servers did not respond. Please try again.',
     keyError_INVALID_ANON_KEY:'Activation service is temporarily unavailable. Please try again in a few minutes or contact support.',
     keyError_404:'Service temporarily unavailable. Please try again or contact support at swaksoft.com/contact.',
     keyError_500:'Our servers encountered an issue. Please try again in a few minutes.',
@@ -789,7 +787,7 @@ var I18N = {
     offlineTitle:'بدون اتصال اینترنت', offlineDesc:'Swak برای تأیید لایسنس به اینترنت نیاز دارد. لطفاً اتصال خود را بررسی کنید.', offlineNote:'داده‌های شما هرگز ارسال نمی‌شوند, فقط لایسنس به صورت آنلاین تأیید می‌شود.', retryConnection:'تلاش مجدد برای اتصال', stillOffline:'هنوز آفلاین است. اتصال اینترنت را بررسی کنید.',
     currentLicense:'لایسنس فعال فعلی', plan:'پلن', keyLabel:'کلید', removeLicense:'حذف لایسنس', enterNewKey:'کلید جدید وارد کنید', changeKey:'تغییر کلید لایسنس:', saveNewKey:'ذخیره لایسنس جدید', licenseRemoved:'لایسنس حذف شد. به رایگان منتقل شدید.',
     readingData:'در حال خواندن داده‌های اکسل...', processingData:'در حال پردازش...', writingResult:'در حال نوشتن در اکسل...',
-    conflictTitle:'لایسنس قبلاً فعال شده', conflictMsg:'این لایسنس روی کامپیوتر دیگری فعال شده است.', conflictDesc:'هر لایسنس فقط روی ۱ دستگاه فعال می‌شود. برای استفاده روی این کامپیوتر لطفاً لایسنس جدید خریداری کنید.', conflictRegistered:'ثبت‌شده روی', conflictThisDevice:'این دستگاه', conflictBlocked:'مسدود ✗', conflictBuyNew:'خرید لایسنس جدید', conflictUseFree:'ادامه با پلن رایگان', conflictTryKey:'امتحان کلید دیگر',
+    conflictTitle:'لایسنس قبلاً فعال شده', conflictMsg:'این لایسنس روی کامپیوتر دیگری فعال شده است.', deviceConflict:'لایسنس قبلاً فعال شده', deviceConflictMsg:'این لایسنس روی کامپیوتر دیگری فعال شده است. از دستگاه اصلی استفاده کنید یا لایسنس جدید خریداری کنید.', conflictDesc:'هر لایسنس فقط روی ۱ دستگاه فعال می‌شود. برای استفاده روی این کامپیوتر لطفاً لایسنس جدید خریداری کنید.', conflictRegistered:'ثبت‌شده روی', conflictThisDevice:'این دستگاه', conflictBlocked:'مسدود ✗', conflictBuyNew:'خرید لایسنس جدید', conflictUseFree:'ادامه با پلن رایگان', conflictTryKey:'امتحان کلید دیگر',
     startConnecting:'در حال اتصال به سرور...', startChecking:'در حال بررسی لایسنس...', startReady:'آماده!',
     remaining:'باقی‌مانده', changeLicense:'تغییر لایسنس',
     days:'روز',
@@ -820,7 +818,7 @@ var I18N = {
     tools:'ابزار', ops:'عملیات',
     configParams:'تنظیم پارامترها',
     getMonthly:'اشتراک ماهانه', get3mo:'اشتراک ۳ ماهه',
-    timeoutTitle:'اتصال ناموفق', timeoutMsg:'اتصال به سرورهای Swak ممکن نشد. اتصال اینترنت خود را بررسی کنید.',
+    timeoutTitle:'اتصال ناموفق', timeoutMsg:'اتصال به سرورهای Swak Data Tools ممکن نشد. اتصال اینترنت خود را بررسی کنید.',
     startConnecting:'در حال بارگذاری...', startChecking:'در حال تأیید لایسنس...', startReady:'آماده!',
     deviceTamperTitle:'هشدار امنیتی', deviceTamperMsg:'کدهای امنیتی دستکاری شده یا شناسه سخت‌افزاری یافت نشد. افزونه قفل شد.',
     keyErrorTitle:'کلید نامعتبر', expiredTitle:'لایسنس منقضی', revokedTitle:'لایسنس باطل',
@@ -830,15 +828,15 @@ var I18N = {
     revokedMsg:'این لایسنس باطل شده. با پشتیبانی تماس بگیرید.',
     suspendedMsg:'این لایسنس معلق است. با پشتیبانی تماس بگیرید.',
     rateLimitMsg:'تلاش‌های زیاد. ۱ ساعت دیگر امتحان کنید.',
-    renewNow:'تمدید اکنون', networkError:'اتصال به سرورهای Swak ممکن نشد. لطفاً دوباره امتحان کنید.', processing:'در حال پردازش...', enterLicense:'وارد کردن کلید لایسنس', backToOnboarding:'بازگشت',
+    renewNow:'تمدید اکنون', networkError:'اتصال به سرورهای Swak Data Tools ممکن نشد. لطفاً دوباره امتحان کنید.', processing:'در حال پردازش...', enterLicense:'وارد کردن کلید لایسنس', backToOnboarding:'بازگشت',
     keyError_INVALID_KEY:'کلید نامعتبر.',
     keyError_LICENSE_EXPIRED:'لایسنس منقضی شده.',
     keyError_DEVICE_CONFLICT:'این لایسنس روی دستگاه دیگری فعال است.',
     keyError_RATE_LIMITED:'تلاش‌های زیاد. ۱ ساعت صبر کنید.',
     keyError_LICENSE_REVOKED:'لایسنس باطل شده.',
     keyError_LICENSE_SUSPENDED:'لایسنس معلق است.',
-    keyError_SERVER_ERROR:'اتصال به سرورهای Swak ممکن نشد. اینترنت خود را بررسی کنید و دوباره امتحان کنید.',
-    keyError_NETWORK_ERROR:'اتصال ناموفق بود. سرورهای Swak در دسترس نیستند. لطفاً دوباره امتحان کنید.',
+    keyError_SERVER_ERROR:'اتصال به سرورهای Swak Data Tools ممکن نشد. اینترنت خود را بررسی کنید و دوباره امتحان کنید.',
+    keyError_NETWORK_ERROR:'اتصال ناموفق بود. سرورهای Swak Data Tools در دسترس نیستند. لطفاً دوباره امتحان کنید.',
     keyError_TIMEOUT:'زمان درخواست تمام شد. سرور پاسخ نداد. لطفاً دوباره امتحان کنید.',
     keyError_INVALID_ANON_KEY:'احراز هویت سرور ناموفق بود. با پشتیبانی تماس بگیرید.',
     keyError_500:'خطای داخلی سرور. لطفاً بعداً دوباره امتحان کنید.',
@@ -862,7 +860,7 @@ var I18N = {
     offlineTitle:'لا يوجد اتصال بالإنترنت', offlineDesc:'يتطلب Swak اتصالاً بالإنترنت للتحقق من ترخيصك.', offlineNote:'لا يتم نقل بياناتك أبداً, يتم التحقق من الترخيص فقط عبر الإنترنت.', retryConnection:'إعادة المحاولة', stillOffline:'لا يزال غير متصل. تحقق من اتصالك.',
     currentLicense:'الترخيص الحالي', plan:'الخطة', keyLabel:'المفتاح', removeLicense:'إزالة الترخيص', enterNewKey:'أدخل مفتاحاً جديداً', changeKey:'تغيير مفتاح الترخيص:', saveNewKey:'حفظ الترخيص الجديد', licenseRemoved:'تمت إزالة الترخيص. تم التبديل للمجاني.',
     readingData:'قراءة بيانات Excel...', processingData:'جاري المعالجة...', writingResult:'الكتابة في Excel...',
-    conflictTitle:'الترخيص مفعّل بالفعل', conflictMsg:'هذا الترخيص مفعّل على جهاز كمبيوتر آخر.', conflictDesc:'كل ترخيص يعمل على جهاز واحد فقط. لاستخدامه هنا، يرجى شراء ترخيص جديد.', conflictRegistered:'مسجل على', conflictThisDevice:'هذا الجهاز', conflictBlocked:'محظور ✗', conflictBuyNew:'شراء ترخيص جديد', conflictUseFree:'الاستمرار بالخطة المجانية', conflictTryKey:'تجربة مفتاح آخر',
+    conflictTitle:'الترخيص مفعّل بالفعل', conflictMsg:'هذا الترخيص مفعّل على جهاز كمبيوتر آخر.', deviceConflict:'الترخيص مفعّل بالفعل', deviceConflictMsg:'هذا الترخيص مفعّل على جهاز آخر. يرجى استخدام جهازك الأصلي أو شراء ترخيص جديد.', conflictDesc:'كل ترخيص يعمل على جهاز واحد فقط. لاستخدامه هنا، يرجى شراء ترخيص جديد.', conflictRegistered:'مسجل على', conflictThisDevice:'هذا الجهاز', conflictBlocked:'محظور ✗', conflictBuyNew:'شراء ترخيص جديد', conflictUseFree:'الاستمرار بالخطة المجانية', conflictTryKey:'تجربة مفتاح آخر',
     startConnecting:'جاري الاتصال بالخادم...', startChecking:'جاري التحقق من الترخيص...', startReady:'جاهز!',
     remaining:'متبقية', changeLicense:'تغيير الترخيص',
     days:'يوم(أيام)',
@@ -911,7 +909,7 @@ var I18N = {
     keyError_LICENSE_REVOKED:'الترخيص ملغى.',
     keyError_LICENSE_SUSPENDED:'الترخيص موقوف.',
     keyError_SERVER_ERROR:'تعذّر الاتصال بخوادم Swak. تحقق من اتصالك بالإنترنت وحاول مجدداً.',
-    keyError_NETWORK_ERROR:'فشل الاتصال. خوادم Swak غير متاحة. حاول مجدداً.',
+    keyError_NETWORK_ERROR:'فشل الاتصال. خوادم Swak Data Tools غير متاحة. حاول مجدداً.',
     keyError_TIMEOUT:'انتهت مهلة الطلب. لم يستجب الخادم. حاول مجدداً.',
     keyError_INVALID_ANON_KEY:'فشل مصادقة الخادم. اتصل بالدعم.',
     keyError_500:'خطأ داخلي في الخادم. حاول مجدداً لاحقاً.',
@@ -933,7 +931,7 @@ var I18N = {
     offlineTitle:'Keine Internetverbindung', offlineDesc:'Swak benötigt Internet zur Lizenzverifizierung. Bitte prüfen Sie Ihre Verbindung.', offlineNote:'Ihre Daten werden nie übertragen, nur die Lizenz wird online geprüft.', retryConnection:'Verbindung erneut versuchen', stillOffline:'Immer noch offline. Bitte Internetverbindung prüfen.',
     currentLicense:'Aktuelle Lizenz', plan:'Plan', keyLabel:'Schlüssel', removeLicense:'Lizenz entfernen', enterNewKey:'Neuen Schlüssel eingeben', changeKey:'Lizenzschlüssel ändern:', saveNewKey:'Neue Lizenz speichern', licenseRemoved:'Lizenz entfernt. Zu Free gewechselt.',
     readingData:'Excel-Daten lesen...', processingData:'Verarbeitung...', writingResult:'In Excel schreiben...',
-    conflictTitle:'Lizenz bereits aktiv', conflictMsg:'Diese Lizenz ist bereits auf einem anderen Computer aktiviert.', conflictDesc:'Jede Lizenz kann nur auf 1 Gerät aktiv sein. Bitte kaufen Sie eine neue Lizenz.', conflictRegistered:'Registriert auf', conflictThisDevice:'Dieses Gerät', conflictBlocked:'Gesperrt ✗', conflictBuyNew:'Neue Lizenz kaufen', conflictUseFree:'Mit Free-Plan fortfahren', conflictTryKey:'Anderen Lizenzschlüssel versuchen',
+    conflictTitle:'Lizenz bereits aktiv', conflictMsg:'Diese Lizenz ist bereits auf einem anderen Computer aktiviert.', deviceConflict:'Lizenz bereits aktiv', deviceConflictMsg:'Diese Lizenz ist bereits auf einem anderen Computer aktiviert. Bitte Originalgerät verwenden oder neue Lizenz kaufen.', conflictDesc:'Jede Lizenz kann nur auf 1 Gerät aktiv sein. Bitte kaufen Sie eine neue Lizenz.', conflictRegistered:'Registriert auf', conflictThisDevice:'Dieses Gerät', conflictBlocked:'Gesperrt ✗', conflictBuyNew:'Neue Lizenz kaufen', conflictUseFree:'Mit Free-Plan fortfahren', conflictTryKey:'Anderen Lizenzschlüssel versuchen',
     startConnecting:'Verbindung zum Server...', startChecking:'Lizenz wird geprüft...', startReady:'Bereit!',
     remaining:'verbleibend', changeLicense:'Lizenz ändern',
     days:'Tag(e)',
@@ -995,7 +993,7 @@ var I18N = {
     offlineTitle:'Pas de connexion Internet', offlineDesc:'Swak nécessite Internet pour vérifier votre licence. Veuillez vérifier votre connexion.', offlineNote:'Vos données ne sont jamais transmises, seule la licence est vérifiée en ligne.', retryConnection:'Réessayer la connexion', stillOffline:'Toujours hors ligne. Vérifiez votre connexion.',
     currentLicense:'Licence active actuelle', plan:'Plan', keyLabel:'Clé', removeLicense:'Supprimer la licence', enterNewKey:'Entrer une nouvelle clé', changeKey:'Changer la clé de licence :', saveNewKey:'Sauvegarder la nouvelle licence', licenseRemoved:'Licence supprimée. Passage en Gratuit.',
     readingData:'Lecture des données Excel...', processingData:'Traitement...', writingResult:'Écriture dans Excel...',
-    conflictTitle:'Licence déjà active', conflictMsg:'Cette licence est déjà activée sur un autre ordinateur.', conflictDesc:'Chaque licence ne peut être active que sur 1 appareil. Veuillez acheter une nouvelle licence.', conflictRegistered:'Enregistré sur', conflictThisDevice:'Cet appareil', conflictBlocked:'Bloqué ✗', conflictBuyNew:'Acheter une nouvelle licence', conflictUseFree:'Continuer avec le plan gratuit', conflictTryKey:'Essayer une autre clé',
+    conflictTitle:'Licence déjà active', conflictMsg:'Cette licence est déjà activée sur un autre ordinateur.', deviceConflict:'Licence déjà active', deviceConflictMsg:'Cette licence est déjà activée sur un autre ordinateur. Utilisez votre appareil d\'origine ou achetez une nouvelle licence.'origine ou acheter une nouvelle licence.', conflictDesc:'Chaque licence ne peut être active que sur 1 appareil. Veuillez acheter une nouvelle licence.', conflictRegistered:'Enregistré sur', conflictThisDevice:'Cet appareil', conflictBlocked:'Bloqué ✗', conflictBuyNew:'Acheter une nouvelle licence', conflictUseFree:'Continuer avec le plan gratuit', conflictTryKey:'Essayer une autre clé',
     startConnecting:'Connexion au serveur...', startChecking:'Vérification de la licence...', startReady:'Prêt !',
     remaining:'restants', changeLicense:'Changer la licence',
     days:'jour(s)',
@@ -1045,9 +1043,9 @@ var I18N = {
     keyError_RATE_LIMITED:'Trop de tentatives. Veuillez attendre 1 heure avant de réessayer.',
     keyError_LICENSE_REVOKED:'Cette licence a été révoquée. Veuillez contacter le support.',
     keyError_LICENSE_SUSPENDED:'Cette licence est temporairement suspendue. Veuillez contacter le support.',
-    keyError_SERVER_ERROR:'Impossible de se connecter aux serveurs Swak. Vérifiez votre connexion Internet.',
-    keyError_NETWORK_ERROR:'Connexion échouée. Les serveurs Swak sont inaccessibles. Veuillez réessayer.',
-    keyError_TIMEOUT:'Délai dépassé. Les serveurs Swak n\'ont pas répondu. Veuillez réessayer.',
+    keyError_SERVER_ERROR:'Impossible de se connecter aux serveurs Swak Data Tools. Vérifiez votre connexion Internet.',
+    keyError_NETWORK_ERROR:'Connexion échouée. Les serveurs Swak Data Tools sont inaccessibles. Veuillez réessayer.',
+    keyError_TIMEOUT:'Délai dépassé. Les serveurs Swak Data Tools n\'ont pas répondu. Veuillez réessayer.',
     keyError_INVALID_ANON_KEY:'Authentification serveur échouée. Veuillez contacter le support.',
     keyError_500:'Erreur serveur interne. Veuillez réessayer plus tard.',
   },
@@ -1057,7 +1055,7 @@ var I18N = {
     offlineTitle:'Sin conexión a Internet', offlineDesc:'Swak requiere Internet para verificar su licencia. Por favor verifique su conexión.', offlineNote:'Sus datos nunca se transmiten, solo se verifica la licencia en línea.', retryConnection:'Reintentar conexión', stillOffline:'Sigue sin conexión. Verifique su conexión a Internet.',
     currentLicense:'Licencia activa actual', plan:'Plan', keyLabel:'Clave', removeLicense:'Eliminar licencia', enterNewKey:'Ingresar nueva clave', changeKey:'Cambiar clave de licencia:', saveNewKey:'Guardar nueva licencia', licenseRemoved:'Licencia eliminada. Cambiado a Gratis.',
     readingData:'Leyendo datos de Excel...', processingData:'Procesando...', writingResult:'Escribiendo en Excel...',
-    conflictTitle:'Licencia ya activa', conflictMsg:'Esta licencia ya está activada en otro ordenador.', conflictDesc:'Cada licencia solo puede estar activa en 1 dispositivo. Por favor, compre una nueva licencia.', conflictRegistered:'Registrado en', conflictThisDevice:'Este dispositivo', conflictBlocked:'Bloqueado ✗', conflictBuyNew:'Comprar nueva licencia', conflictUseFree:'Continuar con plan gratuito', conflictTryKey:'Probar otra clave',
+    conflictTitle:'Licencia ya activa', conflictMsg:'Esta licencia ya está activada en otro ordenador.', deviceConflict:'Licencia ya activa', deviceConflictMsg:'Esta licencia ya está activada en otro ordenador. Use su dispositivo original o compre una nueva licencia.', conflictDesc:'Cada licencia solo puede estar activa en 1 dispositivo. Por favor, compre una nueva licencia.', conflictRegistered:'Registrado en', conflictThisDevice:'Este dispositivo', conflictBlocked:'Bloqueado ✗', conflictBuyNew:'Comprar nueva licencia', conflictUseFree:'Continuar con plan gratuito', conflictTryKey:'Probar otra clave',
     startConnecting:'Conectando al servidor...', startChecking:'Verificando licencia...', startReady:'¡Listo!',
     remaining:'restantes', changeLicense:'Cambiar licencia',
     days:'día(s)',
@@ -1107,9 +1105,9 @@ var I18N = {
     keyError_RATE_LIMITED:'Demasiados intentos. Por favor espere 1 hora antes de intentarlo de nuevo.',
     keyError_LICENSE_REVOKED:'Esta licencia ha sido revocada. Por favor contacte al soporte.',
     keyError_LICENSE_SUSPENDED:'Esta licencia está temporalmente suspendida. Por favor contacte al soporte.',
-    keyError_SERVER_ERROR:'No se puede conectar a los servidores de Swak. Verifique su conexión a Internet.',
-    keyError_NETWORK_ERROR:'Conexión fallida. No se pudo alcanzar a los servidores de Swak. Por favor intente de nuevo.',
-    keyError_TIMEOUT:'Tiempo de espera agotado. Los servidores de Swak no respondieron. Por favor intente de nuevo.',
+    keyError_SERVER_ERROR:'No se puede conectar a los servidores de Swak Data Tools. Verifique su conexión a Internet.',
+    keyError_NETWORK_ERROR:'Conexión fallida. No se pudo alcanzar a los servidores de Swak Data Tools. Por favor intente de nuevo.',
+    keyError_TIMEOUT:'Tiempo de espera agotado. Los servidores de Swak Data Tools no respondieron. Por favor intente de nuevo.',
     keyError_INVALID_ANON_KEY:'Error de autenticación del servidor. Por favor contacte al soporte.',
     keyError_500:'Error interno del servidor. Por favor intente más tarde.',
   },
@@ -1119,7 +1117,7 @@ var I18N = {
     offlineTitle:'无网络连接', offlineDesc:'Swak需要网络来验证您的许可证。请检查您的网络连接。', offlineNote:'您的数据从不传输, 仅在线验证许可证。', retryConnection:'重试连接', stillOffline:'仍处于离线状态。请检查您的网络连接。',
     currentLicense:'当前有效许可证', plan:'方案', keyLabel:'密钥', removeLicense:'删除许可证', enterNewKey:'输入新密钥', changeKey:'更换许可证密钥：', saveNewKey:'保存新许可证', licenseRemoved:'许可证已删除，切换至免费版。',
     readingData:'读取Excel数据...', processingData:'处理中...', writingResult:'写入Excel...',
-    conflictTitle:'许可证已激活', conflictMsg:'此许可证已在另一台计算机上激活。', conflictDesc:'每个许可证只能在1台设备上激活。请购买新许可证以在此电脑上使用。', conflictRegistered:'注册于', conflictThisDevice:'此设备', conflictBlocked:'已封锁 ✗', conflictBuyNew:'购买新许可证', conflictUseFree:'继续使用免费版', conflictTryKey:'尝试其他许可证密钥',
+    conflictTitle:'许可证已激活', conflictMsg:'此许可证已在另一台计算机上激活。', deviceConflict:'许可证已激活', deviceConflictMsg:'此许可证已在另一台计算机上激活。请使用您的原始设备或购买新许可证。', conflictDesc:'每个许可证只能在1台设备上激活。请购买新许可证以在此电脑上使用。', conflictRegistered:'注册于', conflictThisDevice:'此设备', conflictBlocked:'已封锁 ✗', conflictBuyNew:'购买新许可证', conflictUseFree:'继续使用免费版', conflictTryKey:'尝试其他许可证密钥',
     startConnecting:'正在连接服务器...', startChecking:'正在验证许可证...', startReady:'就绪！',
     remaining:'剩余', changeLicense:'更换许可证',
     days:'天',
@@ -1169,9 +1167,9 @@ var I18N = {
     keyError_RATE_LIMITED:'尝试次数过多，请等待1小时后重试。',
     keyError_LICENSE_REVOKED:'此许可证已被撤销，请联系客服。',
     keyError_LICENSE_SUSPENDED:'此许可证已被暂停，请联系客服。',
-    keyError_SERVER_ERROR:'无法连接到 Swak 服务器，请检查您的网络连接。',
-    keyError_NETWORK_ERROR:'连接失败，无法访问 Swak 服务器，请重试。',
-    keyError_TIMEOUT:'请求超时，Swak 服务器未响应，请重试。',
+    keyError_SERVER_ERROR:'无法连接到 Swak Data Tools 服务器，请检查您的网络连接。',
+    keyError_NETWORK_ERROR:'连接失败，无法访问 Swak Data Tools 服务器，请重试。',
+    keyError_TIMEOUT:'请求超时，Swak Data Tools 服务器未响应，请重试。',
     keyError_INVALID_ANON_KEY:'服务器验证失败，请联系客服。',
     keyError_500:'服务器内部错误，请稍后重试。',
   },
@@ -1181,7 +1179,7 @@ var I18N = {
     offlineTitle:'Нет подключения к интернету', offlineDesc:'Swak требует интернет для проверки лицензии. Проверьте подключение.', offlineNote:'Ваши данные никогда не передаются, только лицензия проверяется онлайн.', retryConnection:'Повторить подключение', stillOffline:'Всё ещё нет связи. Проверьте подключение.',
     currentLicense:'Текущая активная лицензия', plan:'План', keyLabel:'Ключ', removeLicense:'Удалить лицензию', enterNewKey:'Ввести новый ключ', changeKey:'Сменить лицензионный ключ:', saveNewKey:'Сохранить новую лицензию', licenseRemoved:'Лицензия удалена. Переход на Free.',
     readingData:'Чтение данных Excel...', processingData:'Обработка...', writingResult:'Запись в Excel...',
-    conflictTitle:'Лицензия уже активирована', conflictMsg:'Эта лицензия уже активирована на другом компьютере.', conflictDesc:'Каждая лицензия активна только на 1 устройстве. Пожалуйста, купите новую лицензию.', conflictRegistered:'Зарегистрирована на', conflictThisDevice:'Этот компьютер', conflictBlocked:'Заблокировано ✗', conflictBuyNew:'Купить новую лицензию', conflictUseFree:'Продолжить с бесплатным планом', conflictTryKey:'Попробовать другой ключ',
+    conflictTitle:'Лицензия уже активирована', conflictMsg:'Эта лицензия уже активирована на другом компьютере.', deviceConflict:'Лицензия уже активирована', deviceConflictMsg:'Эта лицензия уже активирована на другом компьютере. Используйте исходное устройство или купите новую лицензию.', conflictDesc:'Каждая лицензия активна только на 1 устройстве. Пожалуйста, купите новую лицензию.', conflictRegistered:'Зарегистрирована на', conflictThisDevice:'Этот компьютер', conflictBlocked:'Заблокировано ✗', conflictBuyNew:'Купить новую лицензию', conflictUseFree:'Продолжить с бесплатным планом', conflictTryKey:'Попробовать другой ключ',
     startConnecting:'Подключение к серверу...', startChecking:'Проверка лицензии...', startReady:'Готово!',
     remaining:'осталось', changeLicense:'Сменить лицензию',
     days:'дн.',
@@ -1232,8 +1230,8 @@ var I18N = {
     keyError_LICENSE_REVOKED:'Эта лицензия была отозвана. Обратитесь в поддержку.',
     keyError_LICENSE_SUSPENDED:'Эта лицензия временно приостановлена. Обратитесь в поддержку.',
     keyError_SERVER_ERROR:'Не удаётся подключиться к серверам Swak. Проверьте интернет-соединение.',
-    keyError_NETWORK_ERROR:'Подключение не удалось. Серверы Swak недоступны. Попробуйте ещё раз.',
-    keyError_TIMEOUT:'Время ожидания истекло. Серверы Swak не ответили. Попробуйте ещё раз.',
+    keyError_NETWORK_ERROR:'Подключение не удалось. Серверы Swak Data Tools недоступны. Попробуйте ещё раз.',
+    keyError_TIMEOUT:'Время ожидания истекло. Серверы Swak Data Tools не ответили. Попробуйте ещё раз.',
     keyError_INVALID_ANON_KEY:'Ошибка аутентификации сервера. Обратитесь в поддержку.',
     keyError_500:'Внутренняя ошибка сервера. Попробуйте позже.',
   },
@@ -1243,7 +1241,7 @@ var I18N = {
     offlineTitle:'इंटरनेट कनेक्शन नहीं', offlineDesc:'Swak को लाइसेंस जांचने के लिए इंटरनेट चाहिए। कृपया अपना कनेक्शन जांचें।', offlineNote:'आपका डेटा कभी प्रसारित नहीं होता, केवल लाइसेंस ऑनलाइन सत्यापित होता है।', retryConnection:'पुनः कनेक्ट करें', stillOffline:'अभी भी ऑफलाइन। अपना इंटरनेट कनेक्शन जांचें।',
     currentLicense:'वर्तमान सक्रिय लाइसेंस', plan:'प्लान', keyLabel:'कुंजी', removeLicense:'लाइसेंस हटाएं', enterNewKey:'नई कुंजी दर्ज करें', changeKey:'लाइसेंस कुंजी बदलें:', saveNewKey:'नई लाइसेंस सेव करें', licenseRemoved:'लाइसेंस हटाया गया। निःशुल्क में बदला।',
     readingData:'Excel डेटा पढ़ा जा रहा है...', processingData:'प्रसंस्करण...', writingResult:'Excel में लिखा जा रहा है...',
-    conflictTitle:'लाइसेंस पहले से सक्रिय', conflictMsg:'यह लाइसेंस पहले से किसी अन्य कंप्यूटर पर सक्रिय है।', conflictDesc:'प्रत्येक लाइसेंस केवल 1 डिवाइस पर सक्रिय हो सकता है। कृपया नया लाइसेंस खरीदें।', conflictRegistered:'पंजीकृत:', conflictThisDevice:'यह डिवाइस', conflictBlocked:'ब्लॉक ✗', conflictBuyNew:'नया लाइसेंस खरीदें', conflictUseFree:'निःशुल्क प्लान जारी रखें', conflictTryKey:'अलग कुंजी आज़माएं',
+    conflictTitle:'लाइसेंस पहले से सक्रिय', conflictMsg:'यह लाइसेंस पहले से किसी अन्य कंप्यूटर पर सक्रिय है।', deviceConflict:'लाइसेंस पहले से सक्रिय', deviceConflictMsg:'यह लाइसेंस पहले से किसी अन्य कंप्यूटर पर सक्रिय है। अपने मूल डिवाइस का उपयोग करें या नया लाइसेंस खरीदें।', conflictDesc:'प्रत्येक लाइसेंस केवल 1 डिवाइस पर सक्रिय हो सकता है। कृपया नया लाइसेंस खरीदें।', conflictRegistered:'पंजीकृत:', conflictThisDevice:'यह डिवाइस', conflictBlocked:'ब्लॉक ✗', conflictBuyNew:'नया लाइसेंस खरीदें', conflictUseFree:'निःशुल्क प्लान जारी रखें', conflictTryKey:'अलग कुंजी आज़माएं',
     startConnecting:'सर्वर से कनेक्ट हो रहे हैं...', startChecking:'लाइसेंस जांचा जा रहा है...', startReady:'तैयार!',
     remaining:'शेष', changeLicense:'लाइसेंस बदलें',
     days:'दिन',
@@ -1293,9 +1291,9 @@ var I18N = {
     keyError_RATE_LIMITED:'बहुत अधिक प्रयास। कृपया 1 घंटे प्रतीक्षा करें और पुनः प्रयास करें।',
     keyError_LICENSE_REVOKED:'यह लाइसेंस रद्द कर दिया गया है। कृपया सहायता से संपर्क करें।',
     keyError_LICENSE_SUSPENDED:'यह लाइसेंस अस्थायी रूप से निलंबित है। कृपया सहायता से संपर्क करें।',
-    keyError_SERVER_ERROR:'Swak सर्वर से कनेक्ट नहीं हो पा रहे। अपना इंटरनेट कनेक्शन जांचें।',
-    keyError_NETWORK_ERROR:'कनेक्शन विफल। Swak सर्वर तक नहीं पहुंचा जा सका। कृपया पुनः प्रयास करें।',
-    keyError_TIMEOUT:'अनुरोध समय समाप्त। Swak सर्वर ने प्रतिक्रिया नहीं दी। कृपया पुनः प्रयास करें।',
+    keyError_SERVER_ERROR:'Swak Data Tools सर्वर से कनेक्ट नहीं हो पा रहे। अपना इंटरनेट कनेक्शन जांचें।',
+    keyError_NETWORK_ERROR:'कनेक्शन विफल। Swak Data Tools सर्वर तक नहीं पहुंचा जा सका। कृपया पुनः प्रयास करें।',
+    keyError_TIMEOUT:'अनुरोध समय समाप्त। Swak Data Tools सर्वर ने प्रतिक्रिया नहीं दी। कृपया पुनः प्रयास करें।',
     keyError_INVALID_ANON_KEY:'सर्वर प्रमाणीकरण विफल। कृपया सहायता से संपर्क करें।',
     keyError_500:'आंतरिक सर्वर त्रुटि। कृपया बाद में पुनः प्रयास करें।',
   },
@@ -3107,7 +3105,7 @@ function renderOfflineWall(){
     <div style="background:${C().bg};border:2px solid #60A5FA;border-radius:16px;padding:22px;width:280px;text-align:center" onclick="event.stopPropagation()">
       <div style="font-size:32px;margin-bottom:12px">🌐</div>
       <div style="font-size:14px;font-weight:800;color:${C().text};margin-bottom:6px">${t('offlineTitle')||'No Internet Connection'}</div>
-      <div style="font-size:11px;color:${C().text3};line-height:1.6;margin-bottom:16px">${t('offlineDesc')||'Swak requires an active internet connection to verify your license. Please check your connection and try again.'}</div>
+      <div style="font-size:11px;color:${C().text3};line-height:1.6;margin-bottom:16px">${t('offlineDesc')||'Swak Data Tools requires an active internet connection to verify your license. Please check your connection and try again.'}</div>
       <div style="padding:8px 12px;background:${isDark?'#0A1929':'#E6F4FF'};border-radius:6px;border:1px solid #60A5FA33;margin-bottom:14px;font-size:10px;color:${C().text4}">
         ${t('offlineNote')||'Your data is never transmitted, only your license is verified online.'}
       </div>
@@ -3125,7 +3123,7 @@ async function retryConnection(){
     showErrorModal({
       icon:'📡',
       title: t('offlineTitle')||'No Internet Connection',
-      message: t('offlineDesc')||'Swak requires internet to verify your license.',
+      message: t('offlineDesc')||'Swak Data Tools requires internet to verify your license.',
       btnText: t('retryConnection')||'Retry',
       btnAction: 'retryConnection()',
       color:'#6B7280'
@@ -3162,13 +3160,13 @@ function renderDeviceConflict(){
         <div style="width:40px;height:40px;background:${isDark?'#2A0F0F':'#FFEBE9'};border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🔒</div>
         <div>
           <div style="font-size:14px;font-weight:800;color:#F87171">${t('conflictTitle')||'License Already Active'}</div>
-          <div style="font-size:10px;color:${C().text4}">Swak</div>
+          <div style="font-size:10px;color:${C().text4}">Swak Data Tools</div>
         </div>
       </div>
       <!-- Message -->
       <div style="padding:12px;background:${isDark?'#2A0F0F':'#FFEBE9'};border-radius:8px;border:1px solid #F8711855;margin-bottom:14px">
         <div style="font-size:11px;color:#F87171;font-weight:600;margin-bottom:6px">⚠ ${t('conflictMsg')||'This license is already activated on another computer.'}</div>
-        <div style="font-size:10px;color:${C().text3};line-height:1.6">${t('conflictDesc')||'Each license can only be active on 1 device. Your key is currently registered on a different machine. To use Swak on this computer, please purchase a new license.'}</div>
+        <div style="font-size:10px;color:${C().text3};line-height:1.6">${t('conflictDesc')||'Each license can only be active on 1 device. Your key is currently registered on a different machine. To use Swak Data Tools on this computer, please purchase a new license.'}</div>
       </div>
       <!-- Device info -->
       <div style="padding:8px 10px;background:${C().bg2};border-radius:6px;border:1px solid ${C().border};margin-bottom:14px;font-size:10px;color:${C().text3}">
@@ -3185,7 +3183,7 @@ function renderDeviceConflict(){
       <div style="display:flex;flex-direction:column;gap:6px">
         <button onclick="window.open('https://swaksoft.com/buy','_blank')"
           style="width:100%;padding:10px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:7px;color:#fff;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit">
-          🛒 ${t('conflictBuyNew')||'Buy New License'}, $11.99/mo
+          🛒 ${t('conflictBuyNew')||'Buy New License'}, $14.99/mo
         </button>
         <button onclick="show('app');showDeviceConflict=false;rf(false)"
           style="width:100%;padding:8px;background:${C().bg2};border:1px solid ${C().border};border-radius:7px;color:${C().text3};font-size:11px;cursor:pointer;font-family:inherit">
@@ -3202,7 +3200,7 @@ function renderDeviceConflict(){
 
 function renderStartup(){
   const msgs = {
-    connecting: t('startRuntime')  || (lang==='fa'?'بررسی راه‌انداز…':lang==='ar'?'التحقق من Runtime…':'Checking Runtime…'),
+    connecting: 'Starting...',
     checking:   t('startChecking') || (lang==='fa'?'تأیید لایسنس…':lang==='ar'?'التحقق من الترخيص…':'Verifying license…'),
     ready:      t('startReady')    || (lang==='fa'?'آماده!':lang==='ar'?'جاهز!':'Ready!'),
   };
@@ -3218,7 +3216,7 @@ function renderStartup(){
       <div style="width:28px;height:28px;border:2px solid ${colors[startupStatus]}33;border-top:2px solid ${colors[startupStatus]};border-radius:50%;animation:${startupStatus==='ready'?'none':'spin .7s linear infinite'};display:flex;align-items:center;justify-content:center">
         ${startupStatus==='ready'?`<span style="font-size:14px;color:#4ADE80">✓</span>`:''}
       </div>
-      <div style="font-size:12px;color:${colors[startupStatus]};font-weight:600">${msgs[startupStatus]}</div>
+      <div style="font-size:12px;color:${startupStatus==='connecting'?'#ffffff':colors[startupStatus]};font-weight:600">${msgs[startupStatus]}</div>
     </div>
     <div style="position:absolute;bottom:14px;font-size:10px;color:${C().text4}">Version ${APP_VERSION||'1'}</div>
   </div>`;
@@ -3434,7 +3432,7 @@ function renderKeyInput(){
     </div>
     <!-- BACK BUTTON BAR -->
     ${(window._keyPrevScreen&&window._keyPrevScreen!=='keyinput')?`<div style="padding:6px 14px;background:${C().bg};border-bottom:1px solid ${C().border};flex-shrink:0">
-      <button onclick="if(isPlanPro()&&licenseState.licenseKey){activateLicenseFinal();}else{show(window._keyPrevScreen||'onboarding');}" style="display:inline-flex;align-items:center;gap:6px;background:${C().bg2};border:1px solid ${C().border};border-radius:6px;color:${C().text2};cursor:pointer;font-size:11px;font-weight:600;padding:5px 12px;font-family:inherit">
+      <button onclick="(function(){if(licenseState.valid&&licenseState.licenseKey&&licenseState.daysRemaining>0){licenseState.lastValidated=Date.now();}if(isPlanPro()&&licenseState.licenseKey){activateLicenseFinal();}else{show(window._keyPrevScreen||'onboarding');}})()" style="display:inline-flex;align-items:center;gap:6px;background:${C().bg2};border:1px solid ${C().border};border-radius:6px;color:${C().text2};cursor:pointer;font-size:11px;font-weight:600;padding:5px 12px;font-family:inherit">
         ${t('back')||'Back'}
       </button>
     </div>`:''}
@@ -3832,7 +3830,7 @@ function renderApp(isPro){
     </div>`:`
     <div style="padding:6px 14px;display:flex;align-items:center;gap:8px">
       <div style="flex:1;font-size:10px;color:${C().text4}">
-        <span style="color:${getDaysColor()};font-weight:700">${toLocalDigits(licenseState.daysRemaining||'—')} ${t('days')||'day(s)'}</span>
+        <span style="color:${getDaysColor()};font-weight:700">${toLocalDigits(licenseState.daysRemaining||'—')} ${t('days')||'day(s)'}</span> ${t('remaining')||'remaining'}
       </div>
       <button onclick="show('keyinput')" style="padding:4px 8px;background:${C().bg2};border:1px solid ${C().border};border-radius:4px;color:${C().text4};font-size:10px;cursor:pointer;font-family:inherit">${t('changeLicense')||'Change License'}</button>
     </div>`}
@@ -4498,11 +4496,11 @@ function showLicenseErrorModal(errorCode) {
     'LICENSE_EXPIRED':   { icon:'⏰', title: t('expiredTitle')||'License Expired',           msg: t('expiredMsg')||'Your license has expired. Please renew to continue using Swak.',                          color:'#F59E0B', btn: t('renewNow')||'Renew Now', action:"window.open('https://swaksoft.com/renew','_blank')" },
     'LICENSE_REVOKED':   { icon:'🚫', title: t('revokedTitle')||'License Revoked',           msg: t('revokedMsg')||'This license has been revoked. Please contact support.',                                  color:'#EF4444' },
     'LICENSE_SUSPENDED': { icon:'⏸️', title: t('suspendedTitle')||'License Suspended',       msg: t('suspendedMsg')||'This license is temporarily suspended. Please contact support.',                        color:'#F59E0B' },
-    'DEVICE_CONFLICT':   { icon:'💻', title: t('deviceConflict')||'Device Conflict',         msg: t('deviceConflictMsg')||'This license is already activated on another device. Use your original device.', color:'#F59E0B' },
+    'DEVICE_CONFLICT':   { icon:'💻', title: t('conflictTitle')||'License Already Active',   msg: t('conflictMsg')||'This license is already activated on another device.', color:'#F59E0B' },
     'RATE_LIMITED':      { icon:'🛡️', title: t('rateLimitTitle')||'Too Many Attempts',       msg: t('rateLimitMsg')||'Too many failed attempts. Please wait 1 hour before trying again.',                    color:'#EF4444' },
     'INVALID_DEVICE':    { icon:'🔐', title: t('deviceTamperTitle')||'Security Alert',       msg: t('deviceTamperMsg')||'Hardware ID could not be verified. The add-in has been locked.',                   color:'#EF4444', lock:true },
     'SERVER_ERROR':      { icon:'🔧', title: t('serverErrorTitle')||'Server Error',          msg: t('serverErrorMsg')||'An unexpected error occurred. Please try again in a few minutes.',                   color:'#6B7280' },
-    'NETWORK_ERROR':     { icon:'📡', title: t('offlineTitle')||'No Internet Connection',    msg: t('offlineDesc')||'Swak requires internet to verify your license.',                                         color:'#6B7280' },
+    'NETWORK_ERROR':     { icon:'📡', title: t('offlineTitle')||'No Internet Connection',    msg: t('offlineDesc')||'Swak Data Tools requires internet to verify your license.',                                         color:'#6B7280' },
   };
   const e = errors[errorCode] || errors['SERVER_ERROR'];
   showErrorModal({ icon:e.icon, title:e.title, message:e.msg, btnText:e.btn, btnAction:e.action, lockApp:!!e.lock, color:e.color });
@@ -4516,21 +4514,27 @@ function show(s){
   }
   if(s==='keyinput') {
     window._keyPrevScreen = currentScreen || 'onboarding';
-    // If license already valid, show Open App immediately
     if(licenseState.valid && licenseState.licenseKey && licenseState.daysRemaining > 0) {
       window._keyState = 'success';
       window._keyValid = true;
       window._keyErrorCode = '';
-      // Stamp lastValidated so isPlanPro() returns true
       licenseState.lastValidated = Date.now();
     }
+    if(window._keyInputStampTimer) clearInterval(window._keyInputStampTimer);
+    window._keyInputStampTimer = setInterval(() => {
+      if(currentScreen !== 'keyinput') {
+        clearInterval(window._keyInputStampTimer); window._keyInputStampTimer = null; return;
+      }
+      if(licenseState.valid && licenseState.licenseKey && licenseState.daysRemaining > 0)
+        licenseState.lastValidated = Date.now();
+    }, 60 * 1000);
   }
   if(s!=='keyinput'){
-    // reset کامل وقتی از صفحه license خارج می‌شویم
     window._changingMode = false;
     window._keyState = 'idle';
     window._keyValid = false;
     window._keyErrorCode = '';
+    if(window._keyInputStampTimer){clearInterval(window._keyInputStampTimer);window._keyInputStampTimer=null;}
     // پاک کردن textbox
     setTimeout(()=>{const i=document.getElementById('keyIn');if(i&&!window._isChangingLicense){i.value='';}},10);
   }
@@ -4655,7 +4659,6 @@ function activateLicenseFinal(){
   if(isPlanPro()){
     show('app-pro');
     showT('success', t('toastProActivated'));
-    // Post-update changelog disabled — fill POST_UPDATE_CHANGELOG when ready to show
   } else {
     show('app');
   }
@@ -5743,7 +5746,7 @@ function showServerTimeoutModal() {
     <div style="background:${bg};border:1px solid ${bc};border-radius:16px;padding:28px 24px;width:100%;max-width:280px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.5)">
       <div style="font-size:38px;margin-bottom:12px">⏱️</div>
       <div style="font-size:14px;font-weight:800;color:${tc};margin-bottom:8px">${t('timeoutTitle')||'Connection Timeout'}</div>
-      <div style="font-size:11px;color:${sc};line-height:1.6;margin-bottom:20px">${t('timeoutMsg')||'Could not connect to Swak servers. Please check your connection and try again.'}</div>
+      <div style="font-size:11px;color:${sc};line-height:1.6;margin-bottom:20px">${t('timeoutMsg')||'Could not connect to Swak Data Tools servers. Please check your connection and try again.'}</div>
       <button onclick="document.getElementById('swak-timeout-modal')?.remove();startupFlow()"
         style="width:100%;padding:10px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:8px;color:#0D1117;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;margin-bottom:8px">
         🔄 ${t('retryConnection')||'Retry'}
@@ -5776,19 +5779,7 @@ async function startupFlow() {
     document.getElementById(id)?.remove();
   });
 
-  // ── UI PREVIEW MODE: detect standalone browser (not inside Excel add-in) ──
-  // In Excel, Office.js is present; in browser preview it's absent.
-  // Skip the loading/auth screen entirely and go straight to onboarding.
-  const isPreviewMode = typeof Office === 'undefined' || !Office?.context;
-  if(isPreviewMode) {
-    appStarting = false;
-    startupStatus = 'ready';
-    isConnected = true;
-    show('onboarding');
-    const el = document.getElementById('opsCount');
-    if(el) el.textContent = totalOps().toLocaleString();
-    return;
-  }
+  // Full auth flow always runs (no preview mode)
 
   appStarting = true;
   startupStatus = 'connecting';
@@ -5831,7 +5822,7 @@ async function startupFlow() {
         <div style="background:${bg};border:1px solid ${bc};border-radius:16px;padding:28px 24px;width:100%;max-width:280px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.5)">
           <div style="font-size:38px;margin-bottom:12px">📡</div>
           <div style="font-size:14px;font-weight:800;color:${tc};margin-bottom:8px">${t('offlineTitle')||'No Internet Connection'}</div>
-          <div style="font-size:11px;color:${sc};line-height:1.6;margin-bottom:20px">${t('offlineDesc')||'Swak requires internet to verify your license.'}</div>
+          <div style="font-size:11px;color:${sc};line-height:1.6;margin-bottom:20px">${t('offlineDesc')||'Swak Data Tools requires internet to verify your license.'}</div>
           <button onclick="document.getElementById('swak-offline-wall')?.remove();startupFlow()"
             style="width:100%;padding:10px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:8px;color:#0D1117;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;margin-bottom:8px">
             🔄 ${t('retryConnection')||'Retry'}
