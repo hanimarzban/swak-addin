@@ -528,7 +528,7 @@ function handleAuthResult(resp, savedKey, afterSuccess) {
       id: 'swak-expired',
       icon: '⏰',
       title: t('expiredTitle')||'License Expired',
-      message: t('expiredMsg')||'Your license has expired. Purchase a new license to continue using Swak Data Tools Pro.',
+      message: t('expiredMsg')||'Your license has expired. Purchase a new license to continue using Swak Pro.',
       color: '#F59E0B',
       btn1Text: '🛒 '+(t('buyLicense')||'Buy New License'),
       btn1Action: "show('onboarding')",
@@ -763,7 +763,7 @@ var I18N = {
     keyError_LICENSE_SUSPENDED:'This license is suspended.',
     keyError_SERVER_ERROR:'Unable to reach Swak Data Tools servers. Please check your internet and try again.',
     keyError_NETWORK_ERROR:'Unable to connect. Please check your internet connection and try again.',
-    keyError_TIMEOUT:'Request timed out. Swak Data Tools servers did not respond. Please try again.',
+    keyError_TIMEOUT:'Request timed out. Swak servers did not respond. Please try again.',
     keyError_INVALID_ANON_KEY:'Activation service is temporarily unavailable. Please try again in a few minutes or contact support.',
     keyError_404:'Service temporarily unavailable. Please try again or contact support at swaksoft.com/contact.',
     keyError_500:'Our servers encountered an issue. Please try again in a few minutes.',
@@ -909,7 +909,7 @@ var I18N = {
     keyError_LICENSE_REVOKED:'الترخيص ملغى.',
     keyError_LICENSE_SUSPENDED:'الترخيص موقوف.',
     keyError_SERVER_ERROR:'تعذّر الاتصال بخوادم Swak. تحقق من اتصالك بالإنترنت وحاول مجدداً.',
-    keyError_NETWORK_ERROR:'فشل الاتصال. خوادم Swak Data Tools غير متاحة. حاول مجدداً.',
+    keyError_NETWORK_ERROR:'فشل الاتصال. خوادم Swak غير متاحة. حاول مجدداً.',
     keyError_TIMEOUT:'انتهت مهلة الطلب. لم يستجب الخادم. حاول مجدداً.',
     keyError_INVALID_ANON_KEY:'فشل مصادقة الخادم. اتصل بالدعم.',
     keyError_500:'خطأ داخلي في الخادم. حاول مجدداً لاحقاً.',
@@ -993,7 +993,7 @@ var I18N = {
     offlineTitle:'Pas de connexion Internet', offlineDesc:'Swak nécessite Internet pour vérifier votre licence. Veuillez vérifier votre connexion.', offlineNote:'Vos données ne sont jamais transmises, seule la licence est vérifiée en ligne.', retryConnection:'Réessayer la connexion', stillOffline:'Toujours hors ligne. Vérifiez votre connexion.',
     currentLicense:'Licence active actuelle', plan:'Plan', keyLabel:'Clé', removeLicense:'Supprimer la licence', enterNewKey:'Entrer une nouvelle clé', changeKey:'Changer la clé de licence :', saveNewKey:'Sauvegarder la nouvelle licence', licenseRemoved:'Licence supprimée. Passage en Gratuit.',
     readingData:'Lecture des données Excel...', processingData:'Traitement...', writingResult:'Écriture dans Excel...',
-    conflictTitle:'Licence déjà active', conflictMsg:'Cette licence est déjà activée sur un autre ordinateur.', deviceConflict:'Licence déjà active', deviceConflictMsg:'Cette licence est déjà activée sur un autre ordinateur. Utilisez votre appareil d\'origine ou achetez une nouvelle licence.', conflictDesc:'Chaque licence ne peut être active que sur 1 appareil. Veuillez acheter une nouvelle licence.', conflictRegistered:'Enregistré sur', conflictThisDevice:'Cet appareil', conflictBlocked:'Bloqué ✗', conflictBuyNew:'Acheter une nouvelle licence', conflictUseFree:'Continuer avec le plan gratuit', conflictTryKey:'Essayer une autre clé',
+    conflictTitle:'Licence déjà active', conflictMsg:'Cette licence est déjà activée sur un autre ordinateur.', deviceConflict:'Licence déjà active', deviceConflictMsg:"Cette licence est déjà activée sur un autre ordinateur. Utilisez votre appareil d'origine ou achetez une nouvelle licence.", conflictDesc:'Chaque licence ne peut être active que sur 1 appareil. Veuillez acheter une nouvelle licence.', conflictRegistered:'Enregistré sur', conflictThisDevice:'Cet appareil', conflictBlocked:'Bloqué ✗', conflictBuyNew:'Acheter une nouvelle licence', conflictUseFree:'Continuer avec le plan gratuit', conflictTryKey:'Essayer une autre clé',
     startConnecting:'Connexion au serveur...', startChecking:'Vérification de la licence...', startReady:'Prêt !',
     remaining:'restants', changeLicense:'Changer la licence',
     days:'jour(s)',
@@ -1230,8 +1230,8 @@ var I18N = {
     keyError_LICENSE_REVOKED:'Эта лицензия была отозвана. Обратитесь в поддержку.',
     keyError_LICENSE_SUSPENDED:'Эта лицензия временно приостановлена. Обратитесь в поддержку.',
     keyError_SERVER_ERROR:'Не удаётся подключиться к серверам Swak. Проверьте интернет-соединение.',
-    keyError_NETWORK_ERROR:'Подключение не удалось. Серверы Swak Data Tools недоступны. Попробуйте ещё раз.',
-    keyError_TIMEOUT:'Время ожидания истекло. Серверы Swak Data Tools не ответили. Попробуйте ещё раз.',
+    keyError_NETWORK_ERROR:'Подключение не удалось. Серверы Swak недоступны. Попробуйте ещё раз.',
+    keyError_TIMEOUT:'Время ожидания истекло. Серверы Swak не ответили. Попробуйте ещё раз.',
     keyError_INVALID_ANON_KEY:'Ошибка аутентификации сервера. Обратитесь в поддержку.',
     keyError_500:'Внутренняя ошибка сервера. Попробуйте позже.',
   },
@@ -1291,9 +1291,9 @@ var I18N = {
     keyError_RATE_LIMITED:'बहुत अधिक प्रयास। कृपया 1 घंटे प्रतीक्षा करें और पुनः प्रयास करें।',
     keyError_LICENSE_REVOKED:'यह लाइसेंस रद्द कर दिया गया है। कृपया सहायता से संपर्क करें।',
     keyError_LICENSE_SUSPENDED:'यह लाइसेंस अस्थायी रूप से निलंबित है। कृपया सहायता से संपर्क करें।',
-    keyError_SERVER_ERROR:'Swak Data Tools सर्वर से कनेक्ट नहीं हो पा रहे। अपना इंटरनेट कनेक्शन जांचें।',
-    keyError_NETWORK_ERROR:'कनेक्शन विफल। Swak Data Tools सर्वर तक नहीं पहुंचा जा सका। कृपया पुनः प्रयास करें।',
-    keyError_TIMEOUT:'अनुरोध समय समाप्त। Swak Data Tools सर्वर ने प्रतिक्रिया नहीं दी। कृपया पुनः प्रयास करें।',
+    keyError_SERVER_ERROR:'Swak सर्वर से कनेक्ट नहीं हो पा रहे। अपना इंटरनेट कनेक्शन जांचें।',
+    keyError_NETWORK_ERROR:'कनेक्शन विफल। Swak सर्वर तक नहीं पहुंचा जा सका। कृपया पुनः प्रयास करें।',
+    keyError_TIMEOUT:'अनुरोध समय समाप्त। Swak सर्वर ने प्रतिक्रिया नहीं दी। कृपया पुनः प्रयास करें।',
     keyError_INVALID_ANON_KEY:'सर्वर प्रमाणीकरण विफल। कृपया सहायता से संपर्क करें।',
     keyError_500:'आंतरिक सर्वर त्रुटि। कृपया बाद में पुनः प्रयास करें।',
   },
@@ -3181,7 +3181,7 @@ function renderDeviceConflict(){
       </div>
       <!-- Actions -->
       <div style="display:flex;flex-direction:column;gap:6px">
-        <button onclick="window.open('https://swaksoft.com/buy','_blank')"
+        <button onclick="window.open('https://swaksoft.com/sdt#pricing','_blank')"
           style="width:100%;padding:10px;background:linear-gradient(135deg,#4ADE80,#22C55E);border:none;border-radius:7px;color:#fff;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit">
           🛒 ${t('conflictBuyNew')||'Buy New License'}, $14.99/mo
         </button>
@@ -3533,7 +3533,7 @@ function renderKeyInput(){
       <!-- FAQ QUICK LINKS -->
       <div style="margin-top:12px;display:flex;flex-direction:column;gap:4px">
         <div style="font-size:10px;color:${C().text4};text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">${t('needHelp')||'Need help?'}</div>
-        <a href="https://swaksoft.com/buy" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:${C().bg2};border:1px solid ${C().border};border-radius:5px;text-decoration:none">
+        <a href="https://swaksoft.com/sdt#pricing" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:${C().bg2};border:1px solid ${C().border};border-radius:5px;text-decoration:none">
           <span style="font-size:11px">🛒</span><span style="font-size:10px;color:${C().text3}">${t('buyLicense')||'Buy a license'}</span><span style="margin-left:auto;font-size:10px;color:${C().text4}"></span>
         </a>
         <a href="https://swaksoft.com/support" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:${C().bg2};border:1px solid ${C().border};border-radius:5px;text-decoration:none">
@@ -5211,8 +5211,8 @@ document.addEventListener('keydown',e=>{
 let runtimeAvailable = null;   // null=unknown, true/false
 let runtimeCheckInProgress = false;
 const RUNTIME_HEALTH_URL = 'http://127.0.0.1:5000/health';
-const RUNTIME_DOWNLOAD_URL       = 'https://swaksoft.com/download/runtime';
-const RUNTIME_DOWNLOAD_URL_DIRECT = 'https://cdn.swaksoft.com/releases/SWAK_Runtime_Setup_latest.exe';
+const RUNTIME_DOWNLOAD_URL       = 'https://github.com/hanimarzban/swak-addin/releases/latest/download/SWAK_Runtime_Setup_latest.exe';
+const RUNTIME_DOWNLOAD_URL_DIRECT = 'https://github.com/hanimarzban/swak-addin/releases/latest/download/SWAK_Runtime_Setup_latest.exe';
 // گزینه A: swaksoft.com/download/runtime → redirect به CDN فایل installer
 // وقتی نسخه عوض می‌شود فقط redirect وب‌سایت آپدیت می‌شود، نه این کد
 const RUNTIME_CHECK_TIMEOUT = 2500; // ms
@@ -5329,7 +5329,7 @@ function renderRuntimeGate() {
   <div id="swak-runtime-gate" style="background:${bg};min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:16px;direction:${isRtl?'rtl':'ltr'};position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483647">
 
     <!-- Icon -->
-    <div style="width:64px;height:64px;background:${isDark?'#1a1a2e':'#1e293b'};border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:30px">⚙️</div>
+    <div style="width:64px;height:64px;background:${C().bg2};border:2px solid ${C().border};border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:30px">⚙️</div>
 
     <!-- Title -->
     <div style="text-align:center">
@@ -5386,18 +5386,14 @@ function renderRuntimeGate() {
 
       <!-- State: error (hidden by default) -->
       <div id="swak-dl-error" style="display:none">
-        <div style="padding:10px;background:${isDark?'#2A0F0F':'#FFEBE9'};border-radius:8px;border:1px solid #F8717133;text-align:center">
-          <div style="font-size:11px;color:#F87171;font-weight:600;margin-bottom:4px">
-            ${lang==='fa'?'خطا در دانلود':lang==='ar'?'خطأ في التنزيل':'Download failed'}
+        <div style="padding:12px;background:${isDark?'#2A0F0F':'#FFEBE9'};border-radius:8px;border:1px solid #F8717133;text-align:center">
+          <div style="font-size:11px;color:#F87171;font-weight:600;margin-bottom:8px">
+            ${lang==='fa'?'خطا در دانلود. لطفاً دوباره امتحان کنید':lang==='ar'?'فشل التنزيل. يرجى المحاولة مرة أخرى':'Download failed. Please try again.'}
           </div>
-          <button onclick="document.getElementById('swak-dl-error').style.display='none';document.getElementById('swak-dl-btn-wrap').style.display='block'"
-            style="font-size:10px;color:#F59E0B;background:none;border:none;cursor:pointer;text-decoration:underline">
+          <button onclick="document.getElementById('swak-dl-error').style.display='none';startRuntimeDownload()"
+            style="font-size:11px;font-weight:700;color:#ffffff;background:#374151;border:1px solid #4B5563;border-radius:6px;padding:6px 20px;cursor:pointer;font-family:inherit">
             ${lang==='fa'?'تلاش مجدد':lang==='ar'?'إعادة المحاولة':'Try again'}
           </button>
-          <span style="font-size:10px;color:${C().text4}"> ${lang==='fa'?'یا':lang==='ar'?'أو':'or'} </span>
-          <a href="${RUNTIME_DOWNLOAD_URL_DIRECT}" target="_blank" style="font-size:10px;color:#60A5FA">
-            ${lang==='fa'?'دانلود دستی':lang==='ar'?'تنزيل يدوي':'manual download'}
-          </a>
         </div>
       </div>
 
@@ -5424,11 +5420,7 @@ async function startRuntimeDownload() {
   const done     = document.getElementById('swak-dl-done');
   const errBox   = document.getElementById('swak-dl-error');
 
-  if (!btnWrap || !progress) {
-    // Fallback if DOM not ready
-    window.open(RUNTIME_DOWNLOAD_URL, '_blank');
-    return;
-  }
+  if (!btnWrap || !progress) return;
 
   // Show progress bar
   btnWrap.style.display  = 'none';
@@ -5495,8 +5487,7 @@ async function startRuntimeDownload() {
     console.error('[SWAK] Download failed:', err);
     progress.style.display = 'none';
     errBox.style.display   = 'block';
-    // Fallback to manual download
-    setTimeout(() => window.open(RUNTIME_DOWNLOAD_URL, '_blank'), 500);
+    // No fallback — user must retry via the downloader
   }
 }
 
@@ -5779,7 +5770,7 @@ async function startupFlow() {
     document.getElementById(id)?.remove();
   });
 
-  // Full auth flow always runs (no preview mode)
+  // Full auth flow always runs
 
   appStarting = true;
   startupStatus = 'connecting';
